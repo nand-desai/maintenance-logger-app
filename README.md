@@ -49,7 +49,7 @@ Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Ca
   - *App:* how close to due a service turns amber, the default reminder time, and backup/import.
   - *Vehicle:* photo, edit details, set odometer, add another vehicle, delete a vehicle.
 - **Automatic backup (survives uninstalling):** Settings → *Automatic backup*. Choose a folder (for example Documents) and Carlo saves your vehicles, history, photos and settings there after every change. After reinstalling, tap *Restore from my backup folder* on the welcome screen and pick the same folder. Carlo never overwrites a backup while the garage is empty.
-- **Backup and restore:** Settings → *Back up* makes one **zip** containing your data, vehicle photos and receipts, and opens the Android share sheet so you can send it to Drive, Dropbox, email and so on. *Import* loads a zip (or an older `.json`) back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Tire sets, tread and brake history and the insurance plan are included; photos aren't.
+- **Backup and restore:** Settings → *Back up* makes one **zip** containing your data, vehicle photos and receipts, and opens the Android share sheet so you can send it to Drive, Dropbox, email and so on. *Import* loads a zip (or an older `.json`) back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Tire sets, tread and brake history, the insurance plan, vehicle photos and receipts are included in the zip.
 
 ## Build it yourself
 
