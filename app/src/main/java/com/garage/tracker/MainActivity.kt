@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.garage.tracker.data.Categories
+import com.garage.tracker.data.milesRemaining
 import com.garage.tracker.notifications.ReminderScheduler
 import com.garage.tracker.ui.screens.*
 import com.garage.tracker.ui.theme.Cream
@@ -65,6 +66,7 @@ private fun GarageApp(vm: GarageViewModel) {
 
     var tab by remember { mutableIntStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
+    var prefill by remember { mutableStateOf("" to "") }
     var menu by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
@@ -78,7 +80,8 @@ private fun GarageApp(vm: GarageViewModel) {
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) vm.say("Notifications are blocked, so reminders won't show. Enable them in system settings.")
     }
-    fun openReminderDialog() {
+    fun openReminderDialog(title: String = "", note: String = "") {
+        prefill = title to note
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -117,7 +120,7 @@ private fun GarageApp(vm: GarageViewModel) {
         },
         floatingActionButton = {
             if (tab == 2) ExtendedFloatingActionButton(
-                onClick = ::openReminderDialog,
+                onClick = { openReminderDialog() },
                 icon = { Icon(Icons.Default.AddAlert, null) }, text = { Text("Add reminder") },
             ) else if (vehicle != null) ExtendedFloatingActionButton(
                 onClick = { dialog = "entry" },
@@ -130,7 +133,14 @@ private fun GarageApp(vm: GarageViewModel) {
             0 -> DashboardScreen(
                 vehicle, vehicles, schedules,
                 onSelectVehicle = vm::select, onAddVehicle = { dialog = "vehicle" }, onBump = vm::bumpOdometer,
-                onAddSchedule = { dialog = "schedule" }, onMarkDone = vm::markDone, onDeleteSchedule = vm::deleteSchedule,
+                onAddSchedule = { dialog = "schedule" }, onMarkDone = vm::markDone,
+                onRemind = { sch ->
+                    val left = sch.milesRemaining(vehicle?.currentOdometer ?: 0)
+                    openReminderDialog(
+                        "${sch.serviceName} due",
+                        if (left < 0) "Overdue by ${"%,d".format(-left)} mi" else "About ${"%,d".format(left)} mi left (due at ${"%,d".format(sch.lastDoneOdometer + sch.intervalMiles)} mi)",
+                    )
+                }, onDeleteSchedule = vm::deleteSchedule,
                 modifier = m,
             )
             1 -> AnalyticsScreen(vehicle, logs, vm::deleteExpense, m)
@@ -146,6 +156,6 @@ private fun GarageApp(vm: GarageViewModel) {
         )
         "vehicle" -> AddVehicleDialog({ dialog = null }, vm::addVehicle)
         "schedule" -> AddScheduleDialog(vehicle?.currentOdometer ?: 0, { dialog = null }, vm::addSchedule)
-        "reminder" -> AddReminderDialog({ dialog = null }, vm::addReminder)
+        "reminder" -> AddReminderDialog(prefill.first, prefill.second, { dialog = null }, vm::addReminder)
     }
 }

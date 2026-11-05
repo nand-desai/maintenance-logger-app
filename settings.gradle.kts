@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Pitstop"
+rootProject.name = "Wheelhouse"
 include(":app")

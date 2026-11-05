@@ -128,10 +128,10 @@ fun AddScheduleDialog(currentOdometer: Int, onDismiss: () -> Unit, onSave: (Stri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddReminderDialog(onDismiss: () -> Unit, onSave: (title: String, note: String, triggerAt: Long) -> Unit) {
+fun AddReminderDialog(initialTitle: String = "", initialNote: String = "", onDismiss: () -> Unit, onSave: (title: String, note: String, triggerAt: Long) -> Unit) {
     val context = LocalContext.current
-    var title by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf(initialTitle) }
+    var note by remember { mutableStateOf(initialNote) }
     var date by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
     var time by remember { mutableStateOf(LocalTime.of(9, 0)) }
     var pickDate by remember { mutableStateOf(false) }

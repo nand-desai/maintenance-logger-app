@@ -29,6 +29,7 @@ fun DashboardScreen(
     onBump: (Int) -> Unit,
     onAddSchedule: () -> Unit,
     onMarkDone: (MaintenanceSchedule) -> Unit,
+    onRemind: (MaintenanceSchedule) -> Unit,
     onDeleteSchedule: (MaintenanceSchedule) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -51,7 +52,7 @@ fun DashboardScreen(
                 }
             }
             items(schedules.sortedBy { it.milesRemaining(vehicle.currentOdometer) }, key = { it.scheduleId }) { s ->
-                MaintenanceCard(s, vehicle.currentOdometer, { onMarkDone(s) }, { onDeleteSchedule(s) })
+                MaintenanceCard(s, vehicle.currentOdometer, { onMarkDone(s) }, { onRemind(s) }, { onDeleteSchedule(s) })
             }
         }
     }
@@ -97,7 +98,7 @@ private fun GarageHeader(
 }
 
 @Composable
-private fun MaintenanceCard(s: MaintenanceSchedule, odometer: Int, onDone: () -> Unit, onDelete: () -> Unit) {
+private fun MaintenanceCard(s: MaintenanceSchedule, odometer: Int, onDone: () -> Unit, onRemind: () -> Unit, onDelete: () -> Unit) {
     val h = s.health(odometer).style()
     val left = s.milesRemaining(odometer)
     SoftCard {
@@ -118,6 +119,7 @@ private fun MaintenanceCard(s: MaintenanceSchedule, odometer: Int, onDone: () ->
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Every ${"%,d".format(s.intervalMiles)} mi · last at ${"%,d".format(s.lastDoneOdometer)}", Modifier.weight(1f), color = InkSoft, style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = onDone) { Text("Mark done") }
+            IconButton(onClick = onRemind) { Icon(Icons.Default.NotificationAdd, "Remind me", tint = Primary) }
             IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, "Delete", tint = InkSoft) }
         }
     }
