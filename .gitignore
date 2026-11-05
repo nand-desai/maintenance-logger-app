@@ -1,9 +1,17 @@
-*.iml
-.gradle/
-/local.properties
-/.idea/
+# general
 .DS_Store
+.idea/
+*.iml
+
+# android
+.gradle/
+local.properties
 build/
-/captures
+captures/
 .externalNativeBuild
 .cxx
+
+# web
+node_modules/
+dist/
+*.local

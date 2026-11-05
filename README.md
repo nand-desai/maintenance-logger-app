@@ -44,16 +44,17 @@ Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Ca
 You need Android Studio (or JDK 17 and the Android SDK).
 
 ```bash
+cd android
 ./gradlew assembleDebug
 ```
 
-The APK ends up in `app/build/outputs/apk/debug/app-debug.apk`.
+The APK ends up in `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ## How it fits together
 
 | Area | Where |
 | :--- | :--- |
-| Room entities, DAOs, stats and health rules | `app/src/main/java/com/garage/tracker/data/` |
+| Room entities, DAOs, stats and health rules | `android/app/src/main/java/com/garage/tracker/data/` |
 | Backup/restore JSON, app settings | `data/Backup.kt`, `data/SettingsStore.kt` |
 | Screens, dialogs and the home hub | `ui/screens/` (`HomeScreen.kt`, `HomeStatus.kt`) |
 | Vehicle photo and donut chart | `ui/components/` |
