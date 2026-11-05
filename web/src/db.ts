@@ -1,0 +1,40 @@
+import Dexie, { type Table } from 'dexie'
+import type {
+  BrakeEntry, CarNote, ExpenseLog, MaintenanceSchedule, Reminder, RecurringExpense, TireEvent, TireSet, Vehicle,
+} from './types'
+
+class CarloDB extends Dexie {
+  vehicles!: Table<Vehicle, string>
+  schedules!: Table<MaintenanceSchedule, string>
+  expenses!: Table<ExpenseLog, string>
+  reminders!: Table<Reminder, string>
+  tireSets!: Table<TireSet, string>
+  tireEvents!: Table<TireEvent, string>
+  brakeEntries!: Table<BrakeEntry, string>
+  notes!: Table<CarNote, string>
+  recurring!: Table<RecurringExpense, string>
+  photos!: Table<{ vehicleId: string; blob: Blob }, string>
+  meta!: Table<{ key: string; value: unknown }, string>
+
+  constructor() {
+    super('carlo')
+    this.version(1).stores({
+      vehicles: 'vehicleId',
+      schedules: 'scheduleId, vehicleId',
+      expenses: 'logId, vehicleId, date',
+      reminders: 'reminderId, vehicleId, triggerAt',
+      tireSets: 'setId, vehicleId',
+      tireEvents: 'eventId, vehicleId',
+      brakeEntries: 'entryId, vehicleId',
+      notes: 'noteId, vehicleId',
+      recurring: 'recurringId, vehicleId',
+      photos: 'vehicleId',
+      meta: 'key',
+    })
+  }
+}
+
+export const db = new CarloDB()
+
+export const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().slice(0, 8)}`
+export const today = () => new Date().toISOString().slice(0, 10)

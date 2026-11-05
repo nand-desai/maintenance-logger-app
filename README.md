@@ -1,10 +1,20 @@
 # Carlo 🚗
 
-A friendly Android app for keeping track of your cars: service schedules, expenses and reminders, all in one tidy place. Carlo works fully offline. Your data lives on your phone, and you can back it up to Google Drive (or anywhere else) whenever you like.
+A friendly app for keeping track of your cars: service schedules, expenses and reminders, all in one tidy place. Carlo works fully offline. Your data lives on your phone, and you can back it up to Google Drive (or anywhere else) whenever you like.
 
-Built with Kotlin, Jetpack Compose (Material 3) and Room.
+The Android app is built with Kotlin, Jetpack Compose (Material 3) and Room. The web app uses React, TypeScript and Dexie.
 
-## Download
+## Two apps, one repo
+
+| Folder | What | Status |
+| :--- | :--- | :--- |
+| [`android/`](android) | The Android app (Kotlin, Jetpack Compose) | Complete: every feature below |
+| [`web/`](web) | The iPhone-friendly web app (PWA, React) | In progress: see [`web/README.md`](web/README.md) |
+| [`docs/`](docs) | The shared backup format | [`docs/backup-format.md`](docs/backup-format.md) |
+
+A backup made in one app imports into the other.
+
+## Download (Android)
 
 Every push to `main` builds a fresh APK on GitHub Actions.
 
@@ -62,3 +72,10 @@ The APK ends up in `android/app/build/outputs/apk/debug/app-debug.apk`.
 | CI build and release | `.github/workflows/build-apk.yml` |
 
 Reminders use an inexact alarm, so no special exact-alarm permission is needed. A notification can arrive a few minutes late on some phones. On Android 13 and later, Carlo asks for notification permission when you add your first reminder.
+
+## Web app on iPhone
+
+Once GitHub Pages is switched on (repo **Settings → Pages → Source: GitHub Actions**), the web app is
+published at `https://<your-github-name>.github.io/<repo-name>/`. Open that link in Safari, tap
+**Share → Add to Home Screen**, and Carlo appears as an app. See [`web/README.md`](web/README.md) for what
+works so far.
