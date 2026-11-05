@@ -19,7 +19,7 @@ val MintBg = Color(0xFFDDF5E7); val MintFg = Color(0xFF1E8E53)
 val AmberBg = Color(0xFFFFF0CC); val AmberFg = Color(0xFFB7791F)
 val CoralBg = Color(0xFFFFE0DC); val CoralFg = Color(0xFFD9534F)
 
-val ChartColors = listOf(Color(0xFF7C9CFF), Color(0xFFFFB38A), Color(0xFF8FD6B3), Color(0xFFC9A8F5))
+val ChartColors = listOf(Color(0xFF7C9CFF), Color(0xFFFFB38A), Color(0xFF8FD6B3), Color(0xFFC9A8F5), Color(0xFFF5A3C7))
 
 private val Light = lightColorScheme(
     primary = Primary,

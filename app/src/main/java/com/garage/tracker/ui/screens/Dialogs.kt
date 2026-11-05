@@ -136,6 +136,27 @@ fun SetOdometerDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit
     )
 }
 
+/** Date and price: that's all a car wash needs. */
+@Composable
+fun LogWashDialog(onDismiss: () -> Unit, onSave: (date: String, cost: Double) -> Unit) {
+    var date by remember { mutableStateOf(LocalDate.now()) }
+    var cost by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Log a car wash") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DateButton(date, { date = it })
+                Field(cost, { cost = it }, "Cost (CAD, 0 if free)", dec)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = cost.toDoubleOrNull() != null, onClick = { onSave(date.toString(), cost.toDouble()); onDismiss() }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    )
+}
+
 private val serviceSuggestions = listOf(
     "Engine oil & filter" to 10000, "Tire rotation" to 10000, "Brake fluid" to 40000,
     "Air filter" to 30000, "Coolant" to 60000, "Brake pads" to 50000,

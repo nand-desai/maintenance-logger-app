@@ -99,5 +99,6 @@ object Categories {
     const val SERVICE = "Service"
     const val INSURANCE = "Insurance"
     const val UPGRADES = "Upgrades"
-    val all = listOf(FUEL, SERVICE, INSURANCE, UPGRADES)
+    const val CAR_WASH = "Car wash"
+    val all = listOf(FUEL, SERVICE, INSURANCE, UPGRADES, CAR_WASH)
 }

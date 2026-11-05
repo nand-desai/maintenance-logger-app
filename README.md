@@ -21,6 +21,7 @@ Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Ca
 - **Welcome screen:** shown until you add your first vehicle (or restore a backup).
 - **Garage:** switch between vehicles, tap the odometer to type in the new reading, and add a photo of your car. Tap the photo to see it full-screen.
 - **Tap any card to enlarge it.** Maintenance cards open to show the interval, last and next due km, and actions (done now, remind me, edit, delete). Expense and reminder cards and the summary charts expand too.
+- **Car washes:** a Car wash card on the Garage screen shows when you last washed the car. Tap *Log wash* to add a date and price; tap the card for totals and recent washes. Washes count in your expenses.
 - **Health at a glance:** a status pill (green / amber / coral) and a progress bar for every maintenance item.
 - **Expenses:** lifetime cost, cost per km, fuel use (L/100 km), a category donut chart and a full history.
 - **Tires:** a top-down car whose wheels are coloured by season (sun for summer, snow for winter). Keep several tire sets, see which one is on the car and how many km each has done, and swap them in a tap. Log rotation, balancing, alignment and punctures. Tap a wheel to see its punctures. Care tiles show how long ago each service was done.

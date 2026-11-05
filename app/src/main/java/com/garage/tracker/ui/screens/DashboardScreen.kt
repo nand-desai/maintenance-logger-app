@@ -20,12 +20,16 @@ import com.garage.tracker.data.*
 import com.garage.tracker.ui.components.VehiclePhoto
 import com.garage.tracker.ui.theme.*
 import java.io.File
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun DashboardScreen(
     vehicle: Vehicle,
     vehicles: List<Vehicle>,
     schedules: List<MaintenanceSchedule>,
+    washes: List<ExpenseLog>,
     dueSoonKm: Int,
     photoFile: File?,
     photoVersion: Int,
@@ -38,6 +42,8 @@ fun DashboardScreen(
     onMarkDone: (MaintenanceSchedule) -> Unit,
     onRemind: (MaintenanceSchedule) -> Unit,
     onDeleteSchedule: (MaintenanceSchedule) -> Unit,
+    onLogWash: () -> Unit,
+    onDeleteWash: (ExpenseLog) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -74,6 +80,7 @@ fun DashboardScreen(
                 onEdit = { onEditSchedule(s) }, onDelete = { onDeleteSchedule(s) },
             )
         }
+        item { WashCard(washes, onLogWash, onDeleteWash) }
     }
 }
 
@@ -157,6 +164,48 @@ private fun MaintenanceCard(
                     Icon(Icons.Default.DeleteOutline, null, tint = CoralFg); Spacer(Modifier.width(6.dp)); Text("Delete", color = CoralFg)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WashCard(washes: List<ExpenseLog>, onLog: () -> Unit, onDelete: (ExpenseLog) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val last = washes.firstOrNull()
+    val days = last?.let { runCatching { ChronoUnit.DAYS.between(LocalDate.parse(it.date), LocalDate.now()) }.getOrNull() }
+    val lastText = when {
+        last == null -> "No washes logged yet"
+        days == null -> "Last washed ${last.date}"
+        days <= 0L -> "Washed today"
+        days == 1L -> "Last washed yesterday"
+        else -> "Last washed $days days ago"
+    }
+    SoftCard(onClick = { open = !open }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(44.dp).background(Color(0xFFDCEEFF), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.LocalCarWash, null, tint = Color(0xFF2B6CB0))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Car wash", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(lastText, color = InkSoft, style = MaterialTheme.typography.bodyMedium)
+            }
+            FilledTonalButton(onClick = onLog) { Text("Log wash") }
+        }
+        if (open && washes.isNotEmpty()) {
+            val total = washes.sumOf { it.cost }
+            Spacer(Modifier.height(12.dp))
+            DetailRow("Washes logged", washes.size.toString())
+            DetailRow("Total spent", money(total))
+            DetailRow("Average per wash", money(total / washes.size))
+            Spacer(Modifier.height(4.dp))
+            washes.take(10).forEach { w ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${w.date}  ·  ${money(w.cost)}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    IconButton(onClick = { onDelete(w) }) { Icon(Icons.Default.DeleteOutline, "Delete wash", tint = InkSoft) }
+                }
+            }
+            if (washes.size > 10) Text("Showing the 10 most recent. All of them are under Expenses.", color = InkSoft, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

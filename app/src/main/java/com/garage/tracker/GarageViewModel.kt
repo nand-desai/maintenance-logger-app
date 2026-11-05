@@ -116,6 +116,12 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
         }
 
+    /** A quick car-wash entry. It is stored as an expense so it counts toward your totals. */
+    fun addWash(date: String, cost: Double) = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        db.expenseDao().upsert(ExpenseLog(newId("LOG"), v.vehicleId, date, v.currentOdometer, Categories.CAR_WASH, cost, 0.0))
+    }
+
     fun deleteExpense(log: ExpenseLog) = viewModelScope.launch { db.expenseDao().delete(log) }
 
     // ---- Tires ---------------------------------------------------------------------------------

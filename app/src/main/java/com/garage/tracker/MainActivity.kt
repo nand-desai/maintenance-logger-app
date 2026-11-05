@@ -163,6 +163,7 @@ private fun GarageApp(vm: GarageViewModel) {
                 when (tab) {
                     0 -> DashboardScreen(
                         vehicle = active, vehicles = list, schedules = schedules,
+                        washes = logs.filter { it.category == Categories.CAR_WASH }.sortedByDescending { it.date },
                         dueSoonKm = settings.dueSoonKm, photoFile = photo, photoVersion = photoVersion,
                         onSelectVehicle = vm::select,
                         onAddVehicle = { dialog = "addVehicle" },
@@ -180,6 +181,8 @@ private fun GarageApp(vm: GarageViewModel) {
                             )
                         },
                         onDeleteSchedule = vm::deleteSchedule,
+                        onLogWash = { dialog = "wash" },
+                        onDeleteWash = vm::deleteExpense,
                         modifier = m,
                     )
                     1 -> AnalyticsScreen(active, logs, vm::deleteExpense, m)
@@ -234,6 +237,7 @@ private fun GarageApp(vm: GarageViewModel) {
                 else vm.addSchedule(name, interval, last)
             }
         }
+        "wash" -> LogWashDialog({ dialog = null }, vm::addWash)
         "tireSet" -> TireSetDialog(editingSet, isFirst = tireSets.isEmpty(), onDismiss = { dialog = null }) { name, season, brand, size, km, mountNow ->
             val editing = editingSet
             if (editing != null) vm.updateTireSet(editing.copy(name = name, season = season, brand = brand, size = size, kmBefore = km))
