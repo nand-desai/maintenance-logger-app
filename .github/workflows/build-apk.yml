@@ -3,11 +3,17 @@ name: Build APK
 on:
   push:
     branches: [main, init/v1]
+    paths-ignore: ['**.md']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# Never run two builds at once, so the "latest" release can't be deleted mid-publish
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
