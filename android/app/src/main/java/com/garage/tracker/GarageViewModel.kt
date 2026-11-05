@@ -5,6 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.provider.OpenableColumns
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -56,6 +60,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { v -> v?.let { db.recordDao().observe(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val attachments: StateFlow<List<Attachment>> = activeVehicle
+        .flatMapLatest { v -> v?.let { db.attachmentDao().observe(it.vehicleId) } ?: flowOf(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val tireSets: StateFlow<List<TireSet>> = activeVehicle
         .flatMapLatest { v -> v?.let { db.tireDao().observeSets(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -88,6 +96,71 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun say(msg: String) { _message.value = msg }
     fun clearMessage() { _message.value = null }
 
+    // ---- Receipts and other attachments --------------------------------------------------------
+
+    private fun attachmentsDir() = File(getApplication<Application>().filesDir, "attachments")
+    fun attachmentFile(id: String) = File(attachmentsDir(), id)
+
+    private fun displayName(uri: Uri): String? =
+        getApplication<Application>().contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+
+    /** Photos are shrunk to a JPEG of at most 2000 px; PDFs and other files are kept as they are (up to 25 MB). */
+    private suspend fun storeAttachment(v: Vehicle, ownerType: String, ownerId: String, uri: Uri) = withContext(Dispatchers.IO) {
+        val resolver = getApplication<Application>().contentResolver
+        val id = newId("ATT")
+        val target = File(attachmentsDir().apply { mkdirs() }, id)
+        val original = displayName(uri) ?: "attachment"
+        var mime = resolver.getType(uri) ?: "application/octet-stream"
+        var name = original
+        try {
+            if (mime.startsWith("image/") && mime != "image/gif") {
+                val bmp = decodeScaledBitmap(uri, 2000)
+                target.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+                mime = "image/jpeg"
+                name = original.substringBeforeLast('.', original) + ".jpg"
+            } else {
+                var total = 0L
+                resolver.openInputStream(uri)!!.use { input ->
+                    target.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            total += n
+                            require(total <= MAX_ATTACHMENT_BYTES) { "$original is over 25 MB" }
+                            out.write(buf, 0, n)
+                        }
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            target.delete()
+            throw e
+        }
+        db.attachmentDao().upsert(Attachment(id, v.vehicleId, ownerType, ownerId, name, mime, target.length(), System.currentTimeMillis()))
+    }
+
+    private suspend fun removeAttachment(a: Attachment) {
+        withContext(Dispatchers.IO) { attachmentFile(a.attachmentId).delete() }
+        db.attachmentDao().delete(a)
+    }
+
+    private suspend fun deleteAttachmentsFor(ownerId: String) {
+        db.attachmentDao().forOwner(ownerId).forEach { removeAttachment(it) }
+    }
+
+    /** Adds the newly picked files to a record and removes the ones the user took off. */
+    private suspend fun applyAttachments(ownerType: String, ownerId: String, files: List<Uri>, removed: List<Attachment>) {
+        val v = activeVehicle.value ?: return
+        removed.forEach { removeAttachment(it) }
+        files.forEach { uri ->
+            runCatching { storeAttachment(v, ownerType, ownerId, uri) }
+                .onFailure { _message.value = "Couldn't attach that file: ${it.message}" }
+        }
+        if (files.isNotEmpty() || removed.isNotEmpty()) backupTrigger.tryEmit(Unit)
+    }
+
     // ---- Vehicles ------------------------------------------------------------------------------
 
     fun select(id: String) { selectedId.value = id }
@@ -104,7 +177,11 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteVehicle(v: Vehicle) = viewModelScope.launch {
         db.reminderDao().getForVehicle(v.vehicleId).forEach { scheduler.cancel(it) }
         db.reminderDao().deleteForVehicle(v.vehicleId)
-        withContext(Dispatchers.IO) { photoFile(v.vehicleId).delete() }
+        val files = db.attachmentDao().forVehicle(v.vehicleId)
+        withContext(Dispatchers.IO) {
+            photoFile(v.vehicleId).delete()
+            files.forEach { attachmentFile(it.attachmentId).delete() }
+        }
         db.vehicleDao().delete(v) // schedules and expenses go with it (cascade)
         selectedId.value = null
         _photoVersion.value++
@@ -125,7 +202,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
      * Records a completed service (or edits an earlier record). The service's "last done" moves to the newest
      * record, and a cost is added to Expenses under Service, kept in step if the record is edited or deleted.
      */
-    fun saveServiceRecord(s: MaintenanceSchedule, existing: MaintenanceRecord?, date: String, odometer: Int, cost: Double, note: String) =
+    fun saveServiceRecord(
+        s: MaintenanceSchedule, existing: MaintenanceRecord?, date: String, odometer: Int, cost: Double, note: String,
+        files: List<Uri> = emptyList(), removed: List<Attachment> = emptyList(),
+    ) =
         viewModelScope.launch {
             val v = activeVehicle.value ?: return@launch
             val r = MaintenanceRecord(existing?.recordId ?: newId("MNT"), v.vehicleId, s.scheduleId, s.serviceName, date, odometer, cost, note)
@@ -135,6 +215,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                 refreshLastDone(s)
             }
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+            applyAttachments("maintenance", r.recordId, files, removed)
         }
 
     fun deleteServiceRecord(r: MaintenanceRecord) = viewModelScope.launch {
@@ -143,6 +224,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             db.expenseDao().deleteById("EXP_${r.recordId}")
             db.scheduleDao().getAll().firstOrNull { it.scheduleId == r.scheduleId }?.let { refreshLastDone(it) }
         }
+        deleteAttachmentsFor(r.recordId)
     }
 
     private suspend fun refreshLastDone(s: MaintenanceSchedule) {
@@ -152,6 +234,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateSchedule(s: MaintenanceSchedule) = viewModelScope.launch { db.scheduleDao().upsert(s) }
     fun deleteSchedule(s: MaintenanceSchedule) = viewModelScope.launch {
+        db.recordDao().forSchedule(s.scheduleId).forEach { deleteAttachmentsFor(it.recordId) }
         db.withTransaction {
             db.recordDao().forSchedule(s.scheduleId).forEach { r ->
                 db.recordDao().delete(r)
@@ -163,14 +246,20 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Expenses ------------------------------------------------------------------------------
 
-    fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String = "") =
+    fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String = "", files: List<Uri> = emptyList()) =
         viewModelScope.launch {
             val v = activeVehicle.value ?: return@launch
-            db.expenseDao().upsert(ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, litres, note))
+            val e = ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, litres, note)
+            db.expenseDao().upsert(e)
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+            applyAttachments("expense", e.logId, files, emptyList())
         }
 
-    fun updateExpense(log: ExpenseLog) = viewModelScope.launch { db.expenseDao().upsert(log) }
+    fun updateExpense(log: ExpenseLog, files: List<Uri> = emptyList(), removed: List<Attachment> = emptyList()) = viewModelScope.launch {
+        db.expenseDao().upsert(log)
+        // a cost copied from a service, tire or brake record keeps its receipts on that record
+        applyAttachments("expense", log.logId.removePrefix("EXP_"), files, removed)
+    }
 
     /** A quick car-wash entry. It is stored as an expense so it counts toward your totals. */
     fun addWash(date: String, cost: Double) = viewModelScope.launch {
@@ -178,7 +267,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         db.expenseDao().upsert(ExpenseLog(newId("LOG"), v.vehicleId, date, v.currentOdometer, Categories.CAR_WASH, cost, 0.0))
     }
 
-    fun deleteExpense(log: ExpenseLog) = viewModelScope.launch { db.expenseDao().delete(log) }
+    fun deleteExpense(log: ExpenseLog) = viewModelScope.launch {
+        db.expenseDao().delete(log)
+        deleteAttachmentsFor(log.logId)
+    }
 
     // ---- Tires ---------------------------------------------------------------------------------
 
@@ -221,6 +313,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun saveTireEvent(
         existing: TireEvent?, type: String, date: String, odometer: Int, wheel: String?, note: String,
         cost: Double, fl: Double?, fr: Double?, rl: Double?, rr: Double?,
+        files: List<Uri> = emptyList(), removed: List<Attachment> = emptyList(),
     ) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
         val onCar = tireSets.value.firstOrNull { it.mounted }?.setId
@@ -233,6 +326,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             mirrorCost(e.eventId, v.vehicleId, date, odometer, cost, "Tires · $type" + if (note.isNotBlank()) " · $note" else "")
         }
         if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+        applyAttachments("tire", e.eventId, files, removed)
     }
 
     fun deleteTireEvent(e: TireEvent) = viewModelScope.launch {
@@ -240,6 +334,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             db.tireDao().deleteEvent(e)
             db.expenseDao().deleteById("EXP_${e.eventId}")
         }
+        deleteAttachmentsFor(e.eventId)
     }
 
     /** Keeps a matching Service expense in sync with a cost entered on a tire or brake entry. */
@@ -264,6 +359,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun saveBrakeEntry(
         existing: BrakeEntry?, type: String, date: String, odometer: Int,
         frontMm: Double?, rearMm: Double?, cost: Double, note: String,
+        files: List<Uri> = emptyList(), removed: List<Attachment> = emptyList(),
     ) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
         val e = BrakeEntry(existing?.entryId ?: newId("BRK"), v.vehicleId, date, odometer, type, frontMm, rearMm, cost, note)
@@ -272,6 +368,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             mirrorCost(e.entryId, v.vehicleId, date, odometer, cost, "Brakes · ${if (type == BrakeType.REPLACED) "new pads" else "checked"}" + if (note.isNotBlank()) " · $note" else "")
         }
         if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+        applyAttachments("brake", e.entryId, files, removed)
     }
 
     fun deleteBrakeEntry(e: BrakeEntry) = viewModelScope.launch {
@@ -279,6 +376,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             db.brakeDao().delete(e)
             db.expenseDao().deleteById("EXP_${e.entryId}")
         }
+        deleteAttachmentsFor(e.entryId)
     }
 
     // ---- Monthly insurance ---------------------------------------------------------------------
@@ -331,22 +429,78 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Backup --------------------------------------------------------------------------------
 
     /** Writes the backup JSON to the cache dir and returns the file, ready to be shared. */
+    /** A zip with backup.json, the vehicle photos and every attachment: the whole garage in one file. */
     suspend fun createBackupFile(): File = withContext(Dispatchers.IO) {
         val dir = File(getApplication<Application>().cacheDir, "backups").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
-        File(dir, "carlo-backup-${LocalDate.now()}.json").also { it.writeText(Backup.toJson(db, settingsStore.toJson())) }
+        val out = File(dir, "carlo-backup-${LocalDate.now()}.zip")
+        ZipOutputStream(out.outputStream().buffered()).use { zip ->
+            zip.putNextEntry(ZipEntry("backup.json"))
+            zip.write(Backup.toJson(db, settingsStore.toJson()).toByteArray())
+            zip.closeEntry()
+            db.vehicleDao().getAll().forEach { v ->
+                val f = photoFile(v.vehicleId)
+                if (f.exists()) {
+                    zip.putNextEntry(ZipEntry("photos/${v.vehicleId}.img"))
+                    f.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+            }
+            db.attachmentDao().all().forEach { a ->
+                val f = attachmentFile(a.attachmentId)
+                if (f.exists()) {
+                    zip.putNextEntry(ZipEntry("attachments/${a.attachmentId}"))
+                    f.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+            }
+        }
+        out
     }
 
+    /** Imports a .zip backup (data, photos, attachments) or a plain .json backup (data only). */
     fun importBackup(uri: Uri) = viewModelScope.launch {
         _message.value = runCatching {
-            val text = withContext(Dispatchers.IO) {
-                getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
+            val resolver = getApplication<Application>().contentResolver
+            val isZip = withContext(Dispatchers.IO) {
+                resolver.openInputStream(uri)!!.use { val h = ByteArray(2); it.read(h) == 2 && h[0] == 0x50.toByte() && h[1] == 0x4B.toByte() }
             }
-            val counts = Backup.restore(db, text)
+            val text = withContext(Dispatchers.IO) {
+                if (isZip) extractZip(uri) else resolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
+            }
+            val counts = Backup.restore(db, text) { id -> attachmentFile(id).exists() }
             settingsStore.applyBackup(runCatching { JSONObject(text).optJSONObject("settings") }.getOrNull())
+            _photoVersion.value++
             scheduler.scheduleAll(db.reminderDao().getAll())
             "Imported $counts"
         }.getOrElse { "Import failed: ${it.message ?: "unreadable file"}" }
+    }
+
+    /** Unpacks attachments and photos into the app and returns the text of backup.json. */
+    private fun extractZip(uri: Uri): String {
+        var json: String? = null
+        val safeId = Regex("[A-Za-z0-9_]+")
+        ZipInputStream(getApplication<Application>().contentResolver.openInputStream(uri)!!.buffered()).use { zip ->
+            while (true) {
+                val e = zip.nextEntry ?: break
+                val name = e.name
+                if (!e.isDirectory) {
+                    when {
+                        name == "backup.json" -> json = zip.readBytes().toString(Charsets.UTF_8)
+                        name.startsWith("attachments/") -> {
+                            val id = name.substringAfterLast('/')
+                            if (safeId.matches(id)) File(attachmentsDir().apply { mkdirs() }, id).outputStream().use { zip.copyTo(it) }
+                        }
+                        name.startsWith("photos/") -> {
+                            val id = name.substringAfterLast('/').substringBeforeLast('.')
+                            if (safeId.matches(id)) photoFile(id).also { it.parentFile?.mkdirs() }.outputStream().use { zip.copyTo(it) }
+                        }
+                    }
+                }
+                zip.closeEntry()
+            }
+        }
+        return json ?: error("This zip doesn't contain a backup.json")
     }
 
     // ---- Vehicle photos ------------------------------------------------------------------------
@@ -356,6 +510,36 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     fun photoFile(vehicleId: String) =
         File(File(getApplication<Application>().filesDir, "photos"), "$vehicleId.img")
+
+    /** Reads any picture, fixes its rotation and scales it down so neither side exceeds [maxPx]. */
+    private fun decodeScaledBitmap(uri: Uri, maxPx: Int): Bitmap {
+        val resolver = getApplication<Application>().contentResolver
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it, null, bounds) }
+        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "that isn't an image" }
+        var sample = 1
+        while (bounds.outWidth / sample > maxPx || bounds.outHeight / sample > maxPx) sample *= 2
+
+        var bitmap = resolver.openInputStream(uri)!!.use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: error("couldn't read the image")
+
+        val degrees = runCatching {
+            resolver.openInputStream(uri)!!.use {
+                when (ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                    ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                    ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                    ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                    else -> 0f
+                }
+            }
+        }.getOrDefault(0f)
+        if (degrees != 0f) {
+            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(degrees) }, true)
+        }
+        return bitmap
+    }
 
     /** A picture the user just picked, waiting for them to confirm (and optionally cut out the background). */
     data class PendingPhoto(val vehicleId: String, val bitmap: Bitmap)
@@ -368,34 +552,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         val v = activeVehicle.value ?: return@launch
         runCatching {
             withContext(Dispatchers.IO) {
-                val resolver = getApplication<Application>().contentResolver
-
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                resolver.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it, null, bounds) }
-                require(bounds.outWidth > 0 && bounds.outHeight > 0) { "that isn't an image" }
-                var sample = 1
-                while (bounds.outWidth / sample > 2000 || bounds.outHeight / sample > 2000) sample *= 2
-
-                var bitmap = resolver.openInputStream(uri)!!.use {
-                    BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
-                } ?: error("couldn't read the image")
-
-                val degrees = runCatching {
-                    resolver.openInputStream(uri)!!.use {
-                        when (ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-                            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                            else -> 0f
-                        }
-                    }
-                }.getOrDefault(0f)
-                if (degrees != 0f) {
-                    bitmap = Bitmap.createBitmap(
-                        bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(degrees) }, true,
-                    )
-                }
-                bitmap
+                decodeScaledBitmap(uri, 2000)
             }
         }.onSuccess { _pendingPhoto.value = PendingPhoto(v.vehicleId, it) }
             .onFailure { _message.value = "Couldn't use that picture: ${it.message}" }
@@ -446,6 +603,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     private val backupTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
     private val photoStamps = mutableMapOf<String, Long>()
+    private val attachmentStamps = mutableMapOf<String, Long>()
     private var warnedBackupFailure = false
 
     init {
@@ -466,6 +624,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             settingsStore.setBackupUri(uri.toString())
             photoStamps.clear()
+            attachmentStamps.clear()
             warnedBackupFailure = false
             if (runAutoBackup()) _message.value = "Automatic backup is on"
         }
@@ -498,6 +657,15 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                         photoStamps[v.vehicleId] = f.lastModified()
                     }
                 }
+                val attDir = tree.findFile("attachments") ?: tree.createDirectory("attachments") ?: error("couldn't create the attachments folder")
+                db.attachmentDao().all().forEach { a ->
+                    val f = attachmentFile(a.attachmentId)
+                    if (f.exists() && attachmentStamps[a.attachmentId] != f.lastModified()) {
+                        // octet-stream so the provider doesn't add a file extension to the id
+                        writeDoc(attDir, a.attachmentId, "application/octet-stream", f.readBytes())
+                        attachmentStamps[a.attachmentId] = f.lastModified()
+                    }
+                }
             }
             settingsStore.setLastBackup(System.currentTimeMillis())
             true
@@ -521,7 +689,18 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             val text = withContext(Dispatchers.IO) {
                 app.contentResolver.openInputStream(doc.uri)!!.bufferedReader().use { it.readText() }
             }
-            val counts = Backup.restore(db, text)
+            withContext(Dispatchers.IO) {
+                val safeId = Regex("[A-Za-z0-9_]+")
+                tree.findFile("attachments")?.listFiles()?.forEach { d ->
+                    val id = d.name ?: return@forEach
+                    if (safeId.matches(id)) {
+                        app.contentResolver.openInputStream(d.uri)!!.use { input ->
+                            File(attachmentsDir().apply { mkdirs() }, id).outputStream().use { input.copyTo(it) }
+                        }
+                    }
+                }
+            }
+            val counts = Backup.restore(db, text) { id -> attachmentFile(id).exists() }
             settingsStore.applyBackup(runCatching { JSONObject(text).optJSONObject("settings") }.getOrNull())
             withContext(Dispatchers.IO) {
                 db.vehicleDao().getAll().forEach { v ->
@@ -538,7 +717,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         }.getOrElse { "Restore failed: ${it.message}" }
     }
 
-    private companion object { const val BACKUP_FILE = "carlo-backup.json" }
+    private companion object {
+        const val BACKUP_FILE = "carlo-backup.json"
+        const val MAX_ATTACHMENT_BYTES = 25L * 1024 * 1024
+    }
 
     private fun newId(prefix: String) = "${prefix}_${UUID.randomUUID().toString().take(8)}"
 }

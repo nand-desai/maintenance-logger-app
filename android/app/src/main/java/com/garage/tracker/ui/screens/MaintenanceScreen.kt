@@ -103,11 +103,15 @@ private fun MaintenanceCard(
                 records.forEach { r ->
                     Row(Modifier.fillMaxWidth().clickable { onEditRecord(r) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(
-                                "${r.date} · ${"%,d".format(r.odometer)} km" + if (r.cost > 0) " · ${money(r.cost)}" else "",
-                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    "${r.date} · ${"%,d".format(r.odometer)} km" + if (r.cost > 0) " · ${money(r.cost)}" else "",
+                                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+                                )
+                                AttachmentCount(r.recordId)
+                            }
                             if (r.note.isNotBlank()) Text(r.note, color = InkSoft, style = MaterialTheme.typography.bodySmall)
+                            AttachmentList(r.recordId)
                         }
                         Icon(Icons.Default.Edit, "Edit record", tint = InkSoft, modifier = Modifier.size(18.dp))
                     }

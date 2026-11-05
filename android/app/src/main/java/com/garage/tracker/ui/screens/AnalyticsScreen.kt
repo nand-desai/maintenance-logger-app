@@ -132,11 +132,16 @@ private fun expenseTitle(l: ExpenseLog) = when {
 
 @Composable
 private fun ExpenseCard(l: ExpenseLog, onEdit: (ExpenseLog) -> Unit, onDelete: (ExpenseLog) -> Unit) {
+    // a cost copied from a service, tire or brake record shows that record's receipts
+    val owner = l.logId.removePrefix("EXP_")
     var open by rememberSaveable(l.logId) { mutableStateOf(false) }
     SoftCard(onClick = { open = !open }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(expenseTitle(l) + " · ${money(l.cost)}", fontWeight = FontWeight.SemiBold, style = if (open) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(expenseTitle(l) + " · ${money(l.cost)}", fontWeight = FontWeight.SemiBold, style = if (open) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge)
+                    AttachmentCount(owner)
+                }
                 Text(l.date, color = InkSoft, style = MaterialTheme.typography.bodySmall)
             }
             Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = InkSoft)
@@ -146,6 +151,7 @@ private fun ExpenseCard(l: ExpenseLog, onEdit: (ExpenseLog) -> Unit, onDelete: (
             if (l.category == Categories.OTHER) DetailRow("Category", "Other")
             if (l.note.isNotBlank()) DetailRow(if (l.category == Categories.OTHER) "What for" else "Note", l.note)
             DetailRow("Odometer", "${"%,d".format(l.odometer)} km")
+            AttachmentList(owner)
             if (l.fuelLiters > 0) {
                 DetailRow("Fuel", "%.1f L".format(l.fuelLiters))
                 DetailRow("Price per litre", money(l.cost / l.fuelLiters, 3))

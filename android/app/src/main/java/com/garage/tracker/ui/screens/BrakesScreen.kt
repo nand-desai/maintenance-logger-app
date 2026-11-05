@@ -116,7 +116,10 @@ private fun BrakeCard(e: BrakeEntry, onEdit: () -> Unit, onDelete: () -> Unit) {
             Icon(if (e.type == BrakeType.REPLACED) Icons.Default.Build else Icons.Default.Straighten, null, tint = Primary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(if (e.type == BrakeType.REPLACED) "New pads fitted" else "Pads measured", fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (e.type == BrakeType.REPLACED) "New pads fitted" else "Pads measured", fontWeight = FontWeight.SemiBold)
+                    AttachmentCount(e.entryId)
+                }
                 Text("${e.date} · ${"%,d".format(e.odometer)} km", color = InkSoft, style = MaterialTheme.typography.bodySmall)
             }
             Text(summary + if (summary.isNotEmpty()) " mm" else "", style = MaterialTheme.typography.bodySmall, color = InkSoft)
@@ -128,6 +131,7 @@ private fun BrakeCard(e: BrakeEntry, onEdit: () -> Unit, onDelete: () -> Unit) {
             e.rearMm?.let { DetailRow("Rear pads", "%.1f mm".format(it)) }
             if (e.cost > 0) DetailRow("Cost", money(e.cost))
             if (e.note.isNotBlank()) DetailRow("Note", e.note)
+            AttachmentList(e.entryId)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onEdit) { Icon(Icons.Default.Edit, null); Spacer(Modifier.width(6.dp)); Text("Edit") }
                 TextButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, null, tint = CoralFg); Spacer(Modifier.width(6.dp)); Text("Delete", color = CoralFg) }

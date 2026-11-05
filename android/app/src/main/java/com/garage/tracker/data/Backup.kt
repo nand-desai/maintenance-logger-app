@@ -13,11 +13,11 @@ object Backup {
 
     data class Counts(
         val vehicles: Int, val schedules: Int, val expenses: Int, val reminders: Int,
-        val tireSets: Int = 0, val tireEvents: Int = 0, val brakeEntries: Int = 0, val notes: Int = 0, val records: Int = 0,
+        val tireSets: Int = 0, val tireEvents: Int = 0, val brakeEntries: Int = 0, val notes: Int = 0, val records: Int = 0, val attachments: Int = 0,
     ) {
         override fun toString() =
             "$vehicles vehicles, $schedules services, $expenses expenses, $reminders reminders, " +
-                "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries, $notes notes, $records service records"
+                "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries, $notes notes, $records service records, $attachments attachments"
     }
 
     suspend fun toJson(db: GarageDatabase, settings: JSONObject? = null): String {
@@ -65,6 +65,11 @@ object Backup {
                 .put("odometer", it.odometer).put("type", it.type).put("front_mm", it.frontMm ?: JSONObject.NULL)
                 .put("rear_mm", it.rearMm ?: JSONObject.NULL).put("cost", it.cost).put("note", it.note)
         }))
+        root.put("attachments", JSONArray(db.attachmentDao().all().map {
+            JSONObject().put("attachment_id", it.attachmentId).put("vehicle_id", it.vehicleId).put("owner_type", it.ownerType)
+                .put("owner_id", it.ownerId).put("file_name", it.fileName).put("mime", it.mime)
+                .put("size", it.size).put("created_at", it.createdAt)
+        }))
         root.put("car_notes", JSONArray(db.noteDao().all().map {
             JSONObject().put("note_id", it.noteId).put("vehicle_id", it.vehicleId).put("date", it.date)
                 .put("odometer", it.odometer).put("tag", it.tag).put("text", it.text).put("done", it.done)
@@ -81,7 +86,8 @@ object Backup {
      * Merges a backup into the database: rows with the same ID are overwritten, everything else is
      * kept. Runs in one transaction, so a malformed file changes nothing.
      */
-    suspend fun restore(db: GarageDatabase, text: String): Counts {
+    /** [hasFile] says whether the bytes of an attachment are available; rows without a file are skipped. */
+    suspend fun restore(db: GarageDatabase, text: String, hasFile: (String) -> Boolean = { false }): Counts {
         val root = JSONObject(text)
         require(root.optString("app") in ACCEPTED) { "This isn't a Carlo backup file" }
         require(root.optInt("version", 1) >= 2) { "This backup uses miles/gallons and can't be imported" }
@@ -97,6 +103,11 @@ object Backup {
             MaintenanceRecord(it.getString("record_id"), it.getString("vehicle_id"), it.getString("schedule_id"),
                 it.getString("service_name"), it.getString("date"), it.getInt("odometer"),
                 it.optDouble("cost", 0.0), it.optString("note", ""))
+        }
+        val attachments = root.optJSONArray("attachments").objects().filter { hasFile(it.getString("attachment_id")) }.map {
+            Attachment(it.getString("attachment_id"), it.getString("vehicle_id"), it.getString("owner_type"), it.getString("owner_id"),
+                it.optString("file_name", "attachment"), it.optString("mime", "application/octet-stream"),
+                it.optLong("size", 0L), it.optLong("created_at", System.currentTimeMillis()))
         }
         val expenses = root.optJSONArray("expense_logs").objects().map {
             ExpenseLog(it.getString("log_id"), it.getString("vehicle_id"), it.getString("date"),
@@ -134,6 +145,7 @@ object Backup {
             vehicles.forEach { db.vehicleDao().upsert(it) }
             schedules.forEach { db.scheduleDao().upsert(it) }
             records.forEach { db.recordDao().upsert(it) }
+            attachments.forEach { db.attachmentDao().upsert(it) }
             expenses.forEach { db.expenseDao().upsert(it) }
             reminders.forEach { db.reminderDao().upsert(it) }
             tireSets.forEach { db.tireDao().upsertSet(it) }
@@ -142,7 +154,7 @@ object Backup {
             recurring.forEach { db.recurringDao().upsert(it) }
             notes.forEach { db.noteDao().upsert(it) }
         }
-        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size, brakes.size, notes.size, records.size)
+        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size, brakes.size, notes.size, records.size, attachments.size)
     }
 
     private fun JSONObject.optMm(key: String): Double? = if (isNull(key) || !has(key)) null else getDouble(key)

@@ -127,10 +127,10 @@ fun SettingsScreen(
         item {
             SoftCard {
                 Text("Your data", fontWeight = FontWeight.SemiBold)
-                Text("Everything is stored on this phone. Save a copy to Google Drive or anywhere else with Back up.", color = InkSoft, style = MaterialTheme.typography.bodyMedium)
+                Text("Everything is stored on this phone. Back up saves one zip with your data, vehicle photos and receipts; save it to Google Drive or anywhere else.", color = InkSoft, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onBackup, modifier = Modifier.weight(1f)) { Icon(Icons.Default.IosShare, null); Spacer(Modifier.width(6.dp)); Text("Back up") }
+                    Button(onClick = onBackup, modifier = Modifier.weight(1f)) { Icon(Icons.Default.IosShare, null); Spacer(Modifier.width(6.dp)); Text("Back up (zip)") }
                     OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Import") }
                 }
             }

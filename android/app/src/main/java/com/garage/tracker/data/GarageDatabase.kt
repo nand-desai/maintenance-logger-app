@@ -10,9 +10,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         Vehicle::class, MaintenanceSchedule::class, ExpenseLog::class, Reminder::class,
-        TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class, CarNote::class, MaintenanceRecord::class,
+        TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class, CarNote::class, MaintenanceRecord::class, Attachment::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class GarageDatabase : RoomDatabase() {
@@ -25,6 +25,7 @@ abstract class GarageDatabase : RoomDatabase() {
     abstract fun recurringDao(): RecurringDao
     abstract fun noteDao(): NoteDao
     abstract fun recordDao(): RecordDao
+    abstract fun attachmentDao(): AttachmentDao
 
     companion object {
         @Volatile private var instance: GarageDatabase? = null
@@ -32,7 +33,7 @@ abstract class GarageDatabase : RoomDatabase() {
         fun get(context: Context): GarageDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, GarageDatabase::class.java, "garage.db",
-            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).fallbackToDestructiveMigration().build().also { instance = it }
+            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).fallbackToDestructiveMigration().build().also { instance = it }
         }
     }
 }
@@ -112,5 +113,19 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
                 "FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`vehicleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_maintenance_records_vehicleId` ON `maintenance_records` (`vehicleId`)")
+    }
+}
+
+/** Adds receipt / file attachments. */
+private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `attachments` (`attachmentId` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, " +
+                "`ownerType` TEXT NOT NULL, `ownerId` TEXT NOT NULL, `fileName` TEXT NOT NULL, `mime` TEXT NOT NULL, " +
+                "`size` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`attachmentId`), " +
+                "FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`vehicleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_vehicleId` ON `attachments` (`vehicleId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_ownerId` ON `attachments` (`ownerId`)")
     }
 }

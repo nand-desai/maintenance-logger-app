@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import com.garage.tracker.data.ExpenseLog
+import android.net.Uri
+import com.garage.tracker.data.Attachment
 import com.garage.tracker.data.MaintenanceRecord
 import com.garage.tracker.data.MaintenanceSchedule
 import com.garage.tracker.data.RecurringExpense
@@ -55,8 +57,10 @@ fun AddEntryDialog(
     defaultOdometer: Int,
     previousFuelOdometer: Int?,
     onDismiss: () -> Unit,
-    onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String) -> Unit,
+    onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String, files: List<Uri>, removed: List<Attachment>) -> Unit,
 ) {
+    // a cost copied from a service, tire or brake record shows that record's receipts
+    val draft = rememberAttachmentDraft(initial?.logId?.removePrefix("EXP_"))
     var date by remember { mutableStateOf(parseDate(initial?.date)) }
     var odo by remember { mutableStateOf((initial?.odometer ?: defaultOdometer).toString()) }
     var category by remember { mutableStateOf(initial?.category ?: Categories.FUEL) }
@@ -89,6 +93,7 @@ fun AddEntryDialog(
                     Field(litres, { litres = it }, "Fuel (litres)", dec)
                     consumption?.let { Text("≈ %.1f L/100 km since last fill-up".format(it), style = MaterialTheme.typography.bodySmall) }
                 }
+                AttachmentsField(draft)
             }
         },
         confirmButton = {
@@ -99,6 +104,7 @@ fun AddEntryDialog(
                         date.toString(), odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0,
                         // keep the description of a service/tire/brake expense; "Other" uses what was typed
                         if (category == Categories.OTHER) note.trim() else if (initial?.category != Categories.OTHER) initial?.note.orEmpty() else "",
+                        draft.pending.toList(), draft.removed.toList(),
                     )
                     onDismiss()
                 },
@@ -304,9 +310,10 @@ fun ServiceDoneDialog(
     initial: MaintenanceRecord?,
     defaultOdometer: Int,
     onDismiss: () -> Unit,
-    onSave: (date: String, odometer: Int, cost: Double, note: String) -> Unit,
+    onSave: (date: String, odometer: Int, cost: Double, note: String, files: List<Uri>, removed: List<Attachment>) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
+    val draft = rememberAttachmentDraft(initial?.recordId)
     var date by remember { mutableStateOf(parseDate(initial?.date)) }
     var odo by remember { mutableStateOf((initial?.odometer ?: defaultOdometer).toString()) }
     var cost by remember { mutableStateOf(initial?.cost?.takeIf { it > 0 }?.toString() ?: "") }
@@ -324,6 +331,7 @@ fun ServiceDoneDialog(
                     placeholder = { Text("e.g. synthetic 5W-30, which garage, what the mechanic said") },
                     minLines = 3, modifier = Modifier.fillMaxWidth(),
                 )
+                AttachmentsField(draft)
                 Text("A cost is added to your Expenses automatically.", style = MaterialTheme.typography.bodySmall)
                 if (onDelete != null) TextButton(onClick = onDelete) { Text("Delete this record") }
             }
@@ -331,7 +339,7 @@ fun ServiceDoneDialog(
         confirmButton = {
             TextButton(
                 enabled = odo.toIntOrNull() != null && (cost.isBlank() || cost.toNumber() != null),
-                onClick = { onSave(date.toString(), odo.toInt(), cost.toNumber() ?: 0.0, note.trim()); onDismiss() },
+                onClick = { onSave(date.toString(), odo.toInt(), cost.toNumber() ?: 0.0, note.trim(), draft.pending.toList(), draft.removed.toList()); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

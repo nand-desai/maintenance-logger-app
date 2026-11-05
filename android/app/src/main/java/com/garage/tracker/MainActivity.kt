@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -65,7 +66,7 @@ class MainActivity : ComponentActivity() {
 private fun shareBackup(context: Context, file: File) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val send = Intent(Intent.ACTION_SEND).apply {
-        type = "application/json"
+        type = "application/zip"
         putExtra(Intent.EXTRA_STREAM, uri)
         putExtra(Intent.EXTRA_SUBJECT, file.name)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -89,9 +90,33 @@ private fun shareNotes(context: Context, car: String, odometer: Int, open: List<
     context.startActivity(Intent.createChooser(send, "Share notes"))
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Opens a receipt in whatever app handles that kind of file (a PDF viewer, the gallery...). */
+private fun openAttachment(context: Context, file: File, a: Attachment) {
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val view = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, a.mime)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(view) }
+        .onFailure { Toast.makeText(context, "No app can open this file", Toast.LENGTH_SHORT).show() }
+}
+
+/** Makes the receipts available to every screen and dialog. */
 @Composable
 private fun GarageApp(vm: GarageViewModel) {
+    val context = LocalContext.current
+    val attachments by vm.attachments.collectAsStateWithLifecycle()
+    val actions = remember(vm) {
+        AttachmentActions({ a -> vm.attachmentFile(a.attachmentId) }) { a -> openAttachment(context, vm.attachmentFile(a.attachmentId), a) }
+    }
+    CompositionLocalProvider(LocalAttachments provides attachments, LocalAttachmentActions provides actions) {
+        GarageAppContent(vm)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GarageAppContent(vm: GarageViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val vehicleList by vm.vehicles.collectAsStateWithLifecycle()
@@ -370,9 +395,9 @@ private fun GarageApp(vm: GarageViewModel) {
                 defaultOdometer = v.currentOdometer,
                 previousFuelOdometer = logs.filter { it.category == Categories.FUEL && it.logId != editing?.logId }.maxOfOrNull { it.odometer },
                 onDismiss = { dialog = null },
-            ) { date, odo, category, cost, litres, note ->
-                if (editing != null) vm.updateExpense(editing.copy(date = date, odometer = odo, category = category, cost = cost, fuelLiters = litres, note = note))
-                else vm.addExpense(date, odo, category, cost, litres, note)
+            ) { date, odo, category, cost, litres, note, files, removed ->
+                if (editing != null) vm.updateExpense(editing.copy(date = date, odometer = odo, category = category, cost = cost, fuelLiters = litres, note = note), files, removed)
+                else vm.addExpense(date, odo, category, cost, litres, note, files)
             }
         }
         "wash" -> {
@@ -396,7 +421,7 @@ private fun GarageApp(vm: GarageViewModel) {
                 val rec = editingRecord
                 ServiceDoneDialog(
                     schedule = s, initial = rec, defaultOdometer = v.currentOdometer, onDismiss = { dialog = null },
-                    onSave = { date, odo, cost, note -> vm.saveServiceRecord(s, rec, date, odo, cost, note) },
+                    onSave = { date, odo, cost, note, files, removed -> vm.saveServiceRecord(s, rec, date, odo, cost, note, files, removed) },
                     onDelete = rec?.let { r -> { vm.deleteServiceRecord(r); dialog = null } },
                 )
             }
@@ -430,15 +455,15 @@ private fun GarageApp(vm: GarageViewModel) {
         }
         "tireEvent" -> active?.let { v ->
             val editing = editingEvent
-            TireEventDialog(editing, eventPreset.first, eventPreset.second, v.currentOdometer, { dialog = null }) { type, date, odo, wheel, note, cost, fl, fr, rl, rr ->
-                vm.saveTireEvent(editing, type, date, odo, wheel, note, cost, fl, fr, rl, rr)
+            TireEventDialog(editing, eventPreset.first, eventPreset.second, v.currentOdometer, { dialog = null }) { type, date, odo, wheel, note, cost, fl, fr, rl, rr, files, removed ->
+                vm.saveTireEvent(editing, type, date, odo, wheel, note, cost, fl, fr, rl, rr, files, removed)
             }
         }
 
         "brake" -> active?.let { v ->
             val editing = editingBrake
-            BrakeDialog(editing, brakePreset, v.currentOdometer, { dialog = null }) { type, date, odo, front, rear, cost, note ->
-                vm.saveBrakeEntry(editing, type, date, odo, front, rear, cost, note)
+            BrakeDialog(editing, brakePreset, v.currentOdometer, { dialog = null }) { type, date, odo, front, rear, cost, note, files, removed ->
+                vm.saveBrakeEntry(editing, type, date, odo, front, rear, cost, note, files, removed)
             }
         }
 

@@ -1,5 +1,6 @@
 package com.garage.tracker.ui.screens
 
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -150,8 +151,9 @@ fun TireEventDialog(
     initialWheel: String?,
     defaultOdometer: Int,
     onDismiss: () -> Unit,
-    onSave: (type: String, date: String, odometer: Int, wheel: String?, note: String, cost: Double, fl: Double?, fr: Double?, rl: Double?, rr: Double?) -> Unit,
+    onSave: (type: String, date: String, odometer: Int, wheel: String?, note: String, cost: Double, fl: Double?, fr: Double?, rl: Double?, rr: Double?, files: List<Uri>, removed: List<Attachment>) -> Unit,
 ) {
+    val draft = rememberAttachmentDraft(initial?.eventId)
     var type by remember { mutableStateOf(initial?.type ?: initialType) }
     var wheel by remember { mutableStateOf(initial?.wheel ?: initialWheel) }
     var date by remember { mutableStateOf(parseDate(initial?.date)) }
@@ -209,6 +211,7 @@ fun TireEventDialog(
                     Field(cost, { cost = it }, "Cost (CAD, optional)", dec)
                 }
                 Field(note, { note = it }, "Note (optional)")
+                if (!isTread) AttachmentsField(draft)
             }
         },
         confirmButton = {
@@ -222,6 +225,7 @@ fun TireEventDialog(
                         if (isTread) 0.0 else cost.toNumber() ?: 0.0,
                         if (isTread) tread["FL"]?.toNumber() else null, if (isTread) tread["FR"]?.toNumber() else null,
                         if (isTread) tread["RL"]?.toNumber() else null, if (isTread) tread["RR"]?.toNumber() else null,
+                        draft.pending.toList(), draft.removed.toList(),
                     )
                     onDismiss()
                 },
@@ -239,8 +243,9 @@ fun BrakeDialog(
     initialType: String?,
     defaultOdometer: Int,
     onDismiss: () -> Unit,
-    onSave: (type: String, date: String, odometer: Int, frontMm: Double?, rearMm: Double?, cost: Double, note: String) -> Unit,
+    onSave: (type: String, date: String, odometer: Int, frontMm: Double?, rearMm: Double?, cost: Double, note: String, files: List<Uri>, removed: List<Attachment>) -> Unit,
 ) {
+    val draft = rememberAttachmentDraft(initial?.entryId)
     var type by remember { mutableStateOf(initial?.type ?: initialType) }
     var date by remember { mutableStateOf(parseDate(initial?.date)) }
     var odo by remember { mutableStateOf((initial?.odometer ?: defaultOdometer).toString()) }
@@ -271,12 +276,13 @@ fun BrakeDialog(
                 }
                 Field(cost, { cost = it }, "Cost (CAD, optional)", dec)
                 Field(note, { note = it }, "Note (optional)")
+                AttachmentsField(draft)
             }
         },
         confirmButton = {
             TextButton(
                 enabled = type != null && odo.toIntOrNull() != null && mmOk && (cost.isBlank() || cost.toNumber() != null),
-                onClick = { onSave(type!!, date.toString(), odo.toInt(), f, r, cost.toNumber() ?: 0.0, note.trim()); onDismiss() },
+                onClick = { onSave(type!!, date.toString(), odo.toInt(), f, r, cost.toNumber() ?: 0.0, note.trim(), draft.pending.toList(), draft.removed.toList()); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

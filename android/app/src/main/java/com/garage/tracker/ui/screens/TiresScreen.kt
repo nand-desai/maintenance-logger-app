@@ -349,7 +349,10 @@ private fun EventCard(e: TireEvent, set: TireSet?, onEdit: () -> Unit, onDelete:
             Icon(eventIcon(e.type), null, tint = Primary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(title, fontWeight = FontWeight.SemiBold)
+                    AttachmentCount(e.eventId)
+                }
                 Text("${e.date} · ${"%,d".format(e.odometer)} km", color = InkSoft, style = MaterialTheme.typography.bodySmall)
             }
             Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = InkSoft)
@@ -362,6 +365,7 @@ private fun EventCard(e: TireEvent, set: TireSet?, onEdit: () -> Unit, onDelete:
                 wheelNames.forEach { (id, label) -> e.treadFor(id)?.let { DetailRow(label, "%.1f mm".format(it)) } }
             }
             if (e.note.isNotBlank()) DetailRow("Note", e.note)
+            AttachmentList(e.eventId)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onEdit) { Icon(Icons.Default.Edit, null); Spacer(Modifier.width(6.dp)); Text("Edit") }
                 TextButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, null, tint = CoralFg); Spacer(Modifier.width(6.dp)); Text("Delete", color = CoralFg) }

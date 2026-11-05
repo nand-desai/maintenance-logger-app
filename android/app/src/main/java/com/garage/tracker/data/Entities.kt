@@ -173,6 +173,25 @@ data class MaintenanceRecord(
     val note: String,
 )
 
+/** A receipt or other file attached to a record; the bytes live in files/attachments/<attachmentId>. */
+@Entity(
+    tableName = "attachments",
+    foreignKeys = [ForeignKey(Vehicle::class, ["vehicleId"], ["vehicleId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("vehicleId"), Index("ownerId")],
+)
+data class Attachment(
+    @PrimaryKey val attachmentId: String,
+    val vehicleId: String,
+    /** maintenance, tire, brake or expense */
+    val ownerType: String,
+    /** The record / event / entry / expense id it belongs to. */
+    val ownerId: String,
+    val fileName: String,
+    val mime: String,
+    val size: Long,
+    val createdAt: Long,
+)
+
 object NoteTags {
     const val GENERAL = "General"
     val all = listOf("Noise", "Vibration", "Leak", "Smell", "Warning light", "Handling", GENERAL)

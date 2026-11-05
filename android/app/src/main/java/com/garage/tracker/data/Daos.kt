@@ -23,7 +23,7 @@ interface VehicleDao {
         "SELECT (SELECT COUNT(*) FROM vehicles) + (SELECT COUNT(*) FROM maintenance_schedules) + " +
             "(SELECT COUNT(*) FROM expense_logs) + (SELECT COUNT(*) FROM reminders) + (SELECT COUNT(*) FROM tire_sets) + " +
             "(SELECT COUNT(*) FROM tire_events) + (SELECT COUNT(*) FROM brake_entries) + (SELECT COUNT(*) FROM recurring_expenses) + " +
-            "(SELECT COUNT(*) FROM car_notes) + (SELECT COUNT(*) FROM maintenance_records)",
+            "(SELECT COUNT(*) FROM car_notes) + (SELECT COUNT(*) FROM maintenance_records) + (SELECT COUNT(*) FROM attachments)",
     )
     fun changeTick(): Flow<Int>
 
@@ -186,4 +186,25 @@ interface RecordDao {
 
     @Delete
     suspend fun delete(record: MaintenanceRecord)
+}
+
+@Dao
+interface AttachmentDao {
+    @Query("SELECT * FROM attachments WHERE vehicleId = :vehicleId ORDER BY createdAt")
+    fun observe(vehicleId: String): Flow<List<Attachment>>
+
+    @Query("SELECT * FROM attachments")
+    suspend fun all(): List<Attachment>
+
+    @Query("SELECT * FROM attachments WHERE ownerId = :ownerId")
+    suspend fun forOwner(ownerId: String): List<Attachment>
+
+    @Query("SELECT * FROM attachments WHERE vehicleId = :vehicleId")
+    suspend fun forVehicle(vehicleId: String): List<Attachment>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(attachment: Attachment)
+
+    @Delete
+    suspend fun delete(attachment: Attachment)
 }
