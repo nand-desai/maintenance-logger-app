@@ -48,7 +48,6 @@ private fun parseDate(s: String?): LocalDate =
     s?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
 
 /** Accepts "6,5" as well as "6.5". */
-internal fun String.toNumber(): Double? = trim().replace(',', '.').toDoubleOrNull()
 
 /** Add an expense, or edit one when [initial] is given. */
 @Composable
@@ -68,9 +67,9 @@ fun AddEntryDialog(
     var litres by remember { mutableStateOf(initial?.fuelLiters?.takeIf { it > 0 }?.toString() ?: "") }
     var note by remember { mutableStateOf(initial?.note ?: "") }
 
-    val odoV = odo.toIntOrNull()
-    val costV = cost.toNumber()
-    val fuel = litres.toNumber() ?: 0.0
+    val odoV = odo.toOdometer()
+    val costV = cost.toMoney()
+    val fuel = litres.toMoney() ?: 0.0
     val consumption = if (category == Categories.FUEL && odoV != null) entryLitresPer100Km(previousFuelOdometer, odoV, fuel) else null
 
     AlertDialog(
@@ -174,8 +173,8 @@ fun VehicleDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = make.isNotBlank() && model.isNotBlank() && year.toIntOrNull() != null && odo.toIntOrNull() != null,
-                onClick = { onSave(make.trim(), model.trim(), year.toInt(), odo.toInt(), color); onDismiss() },
+                enabled = make.isNotBlank() && model.isNotBlank() && year.toYear() != null && odo.toOdometer() != null,
+                onClick = { onSave(make.trim(), model.trim(), year.toYear()!!, odo.toOdometer()!!, color); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
@@ -237,7 +236,7 @@ fun SetOdometerDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit
         title = { Text("Update odometer") },
         text = { Field(value, { value = it }, "Odometer (km)", num) },
         confirmButton = {
-            TextButton(enabled = value.toIntOrNull() != null, onClick = { onSave(value.toInt()); onDismiss() }) { Text("Save") }
+            TextButton(enabled = value.toOdometer() != null, onClick = { onSave(value.toOdometer()!!); onDismiss() }) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )
@@ -258,7 +257,7 @@ fun LogWashDialog(initial: ExpenseLog?, onDismiss: () -> Unit, onSave: (date: St
             }
         },
         confirmButton = {
-            TextButton(enabled = cost.toNumber() != null, onClick = { onSave(date.toString(), cost.toNumber()!!); onDismiss() }) { Text("Save") }
+            TextButton(enabled = cost.toMoney() != null, onClick = { onSave(date.toString(), cost.toMoney()!!); onDismiss() }) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )
@@ -297,7 +296,7 @@ fun InsurancePlanDialog(
             }
         },
         confirmButton = {
-            TextButton(enabled = (amount.toNumber() ?: 0.0) > 0, onClick = { onSave(amount.toNumber()!!, date, active); onDismiss() }) { Text("Save") }
+            TextButton(enabled = (amount.toMoney() ?: 0.0) > 0, onClick = { onSave(amount.toMoney()!!, date, active); onDismiss() }) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )
@@ -338,8 +337,8 @@ fun ServiceDoneDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = odo.toIntOrNull() != null && (cost.isBlank() || cost.toNumber() != null),
-                onClick = { onSave(date.toString(), odo.toInt(), cost.toNumber() ?: 0.0, note.trim(), draft.pending.toList(), draft.removed.toList()); onDismiss() },
+                enabled = odo.toOdometer() != null && (cost.isBlank() || cost.toMoney() != null),
+                onClick = { onSave(date.toString(), odo.toOdometer()!!, cost.toMoney() ?: 0.0, note.trim(), draft.pending.toList(), draft.removed.toList()); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
@@ -378,8 +377,8 @@ fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismis
         },
         confirmButton = {
             TextButton(
-                enabled = name.isNotBlank() && (interval.toIntOrNull() ?: 0) > 0 && last.toIntOrNull() != null,
-                onClick = { onSave(name.trim(), interval.toInt(), last.toInt()); onDismiss() },
+                enabled = name.isNotBlank() && (interval.toOdometer() ?: 0) > 0 && last.toOdometer() != null,
+                onClick = { onSave(name.trim(), interval.toOdometer()!!, last.toOdometer()!!); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

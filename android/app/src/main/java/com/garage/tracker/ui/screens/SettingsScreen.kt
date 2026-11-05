@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -15,7 +15,9 @@ import android.net.Uri
 import android.text.format.DateUtils
 import androidx.compose.ui.platform.LocalContext
 import androidx.documentfile.provider.DocumentFile
+import com.garage.tracker.StorageUsage
 import com.garage.tracker.data.AppSettings
+import kotlinx.coroutines.launch
 import com.garage.tracker.data.RecurringExpense
 import com.garage.tracker.data.Vehicle
 import com.garage.tracker.ui.components.VehiclePhoto
@@ -42,6 +44,8 @@ fun SettingsScreen(
     onChooseBackupFolder: () -> Unit,
     onBackupNow: () -> Unit,
     onStopAutoBackup: () -> Unit,
+    loadStorage: suspend () -> StorageUsage,
+    onClearTemp: suspend () -> Long,
     onAddVehicle: () -> Unit,
     onEditVehicle: () -> Unit,
     onSetOdometer: () -> Unit,
@@ -125,6 +129,24 @@ fun SettingsScreen(
             }
         }
         item {
+            var refresh by remember { mutableIntStateOf(0) }
+            val usage by produceState<StorageUsage?>(null, refresh) { value = loadStorage() }
+            val scope = rememberCoroutineScope()
+            SoftCard {
+                Text("Storage", fontWeight = FontWeight.SemiBold)
+                usage?.let { u ->
+                    DetailRow("Receipts and files", "${u.receiptCount} · ${formatBytes(u.receiptBytes)}")
+                    DetailRow("Vehicle photos", formatBytes(u.photoBytes))
+                    DetailRow("Temporary files", formatBytes(u.tempBytes))
+                    Text(
+                        "Pictures are shrunk when you add them, and deleting an entry deletes its receipts. Temporary files (the zip made for sharing, camera shots) clear themselves after a day.",
+                        color = InkSoft, style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (u.tempBytes > 0) TextButton(onClick = { scope.launch { onClearTemp(); refresh++ } }) { Text("Clear temporary files now") }
+                }
+            }
+        }
+        item {
             SoftCard {
                 Text("Your data", fontWeight = FontWeight.SemiBold)
                 Text("Everything is stored on this phone. Back up saves one zip with your data, vehicle photos and receipts; save it to Google Drive or anywhere else.", color = InkSoft, style = MaterialTheme.typography.bodyMedium)
@@ -194,3 +216,5 @@ private fun SettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     )
 }
+
+private fun formatBytes(n: Long) = if (n >= 1_000_000) "%.1f MB".format(n / 1_000_000.0) else "${n / 1000} KB"

@@ -21,12 +21,16 @@ import com.garage.tracker.data.*
 import com.garage.tracker.notifications.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
 import java.util.UUID
+
+/** How much space the app is using, in bytes. */
+data class StorageUsage(val receiptCount: Int, val receiptBytes: Long, val photoBytes: Long, val tempBytes: Long)
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class GarageViewModel(app: Application) : AndroidViewModel(app) {
@@ -91,7 +95,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
-    init { viewModelScope.launch { runRecurring() } }
+    init { viewModelScope.launch { runRecurring() }; viewModelScope.launch(Dispatchers.IO) { sweepTemporaryFiles() } }
 
     fun say(msg: String) { _message.value = msg }
     fun clearMessage() { _message.value = null }
@@ -115,8 +119,8 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         var name = original
         try {
             if (mime.startsWith("image/") && mime != "image/gif") {
-                val bmp = decodeScaledBitmap(uri, 2000)
-                target.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+                val bmp = decodeScaledBitmap(uri, 1600)
+                target.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 80, it) }
                 mime = "image/jpeg"
                 name = original.substringBeforeLast('.', original) + ".jpg"
             } else {
@@ -139,6 +143,8 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             throw e
         }
         db.attachmentDao().upsert(Attachment(id, v.vehicleId, ownerType, ownerId, name, mime, target.length(), System.currentTimeMillis()))
+        // a photo taken with the camera lives in our cache: the copy above is the keeper
+        if (uri.authority == "${getApplication<Application>().packageName}.fileprovider") runCatching { resolver.delete(uri, null, null) }
     }
 
     private suspend fun removeAttachment(a: Attachment) {
@@ -473,7 +479,14 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             _photoVersion.value++
             scheduler.scheduleAll(db.reminderDao().getAll())
             "Imported $counts"
-        }.getOrElse { "Import failed: ${it.message ?: "unreadable file"}" }
+        }.getOrElse { "Import failed: ${friendlyError(it)}" }
+    }
+
+    /** Turns a parser's technical message into something a person can act on. */
+    private fun friendlyError(e: Throwable): String = when (e) {
+        is org.json.JSONException -> "that file isn't a Carlo backup (it isn't valid JSON)"
+        is java.util.zip.ZipException -> "that zip file is damaged or incomplete"
+        else -> e.message ?: "unreadable file"
     }
 
     /** Unpacks attachments and photos into the app and returns the text of backup.json. */
@@ -501,6 +514,43 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         return json ?: error("This zip doesn't contain a backup.json")
+    }
+
+    // ---- Storage and temporary files ------------------------------------------------------------
+
+    /** What the app is holding on to, so the user can see where the space goes. */
+    suspend fun storageUsage(): StorageUsage = withContext(Dispatchers.IO) {
+        val app = getApplication<Application>()
+        fun size(f: File): Long = if (f.isDirectory) (f.listFiles()?.sumOf { size(it) } ?: 0L) else f.length()
+        StorageUsage(
+            receiptCount = db.attachmentDao().all().size,
+            receiptBytes = size(attachmentsDir()),
+            photoBytes = size(File(app.filesDir, "photos")),
+            tempBytes = size(File(app.cacheDir, "backups")) + size(File(app.cacheDir, "captures")),
+        )
+    }
+
+    /** Deletes the temporary backup zip and any leftover camera shots. Returns the bytes freed. */
+    suspend fun clearTemporaryFiles(): Long = withContext(Dispatchers.IO) {
+        val app = getApplication<Application>()
+        var freed = 0L
+        listOf("backups", "captures").forEach { name ->
+            File(app.cacheDir, name).listFiles()?.forEach { freed += it.length(); it.delete() }
+        }
+        freed
+    }
+
+    /** Old temporary files are cleared at start-up so they never pile up. */
+    private fun sweepTemporaryFiles() {
+        val app = getApplication<Application>()
+        val now = System.currentTimeMillis()
+        File(app.cacheDir, "backups").listFiles()?.filter { now - it.lastModified() > 24 * 3_600_000L }?.forEach { it.delete() }
+        File(app.cacheDir, "captures").listFiles()?.filter { now - it.lastModified() > 3_600_000L }?.forEach { it.delete() }
+        // receipts or photos left behind by a save that was interrupted (no database row)
+        runCatching {
+            val known = runBlocking { db.attachmentDao().all().map { it.attachmentId }.toSet() }
+            attachmentsDir().listFiles()?.filter { it.name !in known && now - it.lastModified() > 3_600_000L }?.forEach { it.delete() }
+        }
     }
 
     // ---- Vehicle photos ------------------------------------------------------------------------
@@ -552,7 +602,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         val v = activeVehicle.value ?: return@launch
         runCatching {
             withContext(Dispatchers.IO) {
-                decodeScaledBitmap(uri, 2000)
+                decodeScaledBitmap(uri, 1600)
             }
         }.onSuccess { _pendingPhoto.value = PendingPhoto(v.vehicleId, it) }
             .onFailure { _message.value = "Couldn't use that picture: ${it.message}" }
@@ -653,7 +703,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                 db.vehicleDao().getAll().forEach { v ->
                     val f = photoFile(v.vehicleId)
                     if (f.exists() && photoStamps[v.vehicleId] != f.lastModified()) {
-                        writeDoc(tree, "carlo-photo-${v.vehicleId}.jpg", "image/jpeg", f.readBytes())
+                        writeDocFile(tree, "carlo-photo-${v.vehicleId}.jpg", "image/jpeg", f)
                         photoStamps[v.vehicleId] = f.lastModified()
                     }
                 }
@@ -662,16 +712,37 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                     val f = attachmentFile(a.attachmentId)
                     if (f.exists() && attachmentStamps[a.attachmentId] != f.lastModified()) {
                         // octet-stream so the provider doesn't add a file extension to the id
-                        writeDoc(attDir, a.attachmentId, "application/octet-stream", f.readBytes())
+                        writeDocFile(attDir, a.attachmentId, "application/octet-stream", f)
                         attachmentStamps[a.attachmentId] = f.lastModified()
                     }
                 }
+                pruneBackupFolder(tree, attDir)
             }
             settingsStore.setLastBackup(System.currentTimeMillis())
             true
         }.getOrElse {
             if (!warnedBackupFailure) { warnedBackupFailure = true; _message.value = "Automatic backup failed: ${it.message}" }
             false
+        }
+    }
+
+    /** Copies a file into the backup folder in chunks, so a big receipt never has to fit in memory. */
+    private fun writeDocFile(tree: DocumentFile, name: String, mime: String, source: File) {
+        val file = tree.findFile(name) ?: tree.createFile(mime, name) ?: error("couldn't create $name")
+        getApplication<Application>().contentResolver.openOutputStream(file.uri, "wt")!!.use { out ->
+            source.inputStream().use { it.copyTo(out) }
+        }
+    }
+
+    /** Removes backup-folder copies of things that no longer exist in the app (deleted receipts, deleted vehicles). */
+    private suspend fun pruneBackupFolder(tree: DocumentFile, attDir: DocumentFile) {
+        val attachmentIds = db.attachmentDao().all().map { it.attachmentId }.toSet()
+        attDir.listFiles().forEach { d -> if (d.name !in attachmentIds) d.delete() }
+        attachmentStamps.keys.retainAll(attachmentIds)
+        val photoNames = db.vehicleDao().getAll().map { "carlo-photo-${it.vehicleId}.jpg" }.toSet()
+        tree.listFiles().forEach { d ->
+            val n = d.name ?: return@forEach
+            if (n.startsWith("carlo-photo-") && n !in photoNames) d.delete()
         }
     }
 
@@ -714,7 +785,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             scheduler.scheduleAll(db.reminderDao().getAll())
             settingsStore.setBackupUri(uri.toString())
             "Restored $counts"
-        }.getOrElse { "Restore failed: ${it.message}" }
+        }.getOrElse { "Restore failed: ${friendlyError(it)}" }
     }
 
     private companion object {

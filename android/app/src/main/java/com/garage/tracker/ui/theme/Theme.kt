@@ -28,12 +28,12 @@ data class AppColors(
 )
 
 val LightColors = AppColors(
-    cream = Color(0xFFF8F9FE), surface = Color(0xFFFFFFFF), ink = Color(0xFF1F2430), inkSoft = Color(0xFF6B7280),
+    cream = Color(0xFFF8F9FE), surface = Color(0xFFFFFFFF), ink = Color(0xFF1F2430), inkSoft = Color(0xFF656C79),
     primary = Color(0xFF5B7CFA),
-    mintBg = Color(0xFFDDF5E7), mintFg = Color(0xFF1E8E53),
-    amberBg = Color(0xFFFFF0CC), amberFg = Color(0xFFB7791F),
-    coralBg = Color(0xFFFFE0DC), coralFg = Color(0xFFD9534F),
-    neutralBg = Color(0xFFEEF0FA), skyBg = Color(0xFFDCEEFF), skyFg = Color(0xFF2B6CB0),
+    mintBg = Color(0xFFDDF5E7), mintFg = Color(0xFF1A7B48),
+    amberBg = Color(0xFFFFF0CC), amberFg = Color(0xFF946219),
+    coralBg = Color(0xFFFFE0DC), coralFg = Color(0xFFAD423F),
+    neutralBg = Color(0xFFEEF0FA), skyBg = Color(0xFFDCEEFF), skyFg = Color(0xFF2A6AAE),
 )
 
 val DarkColors = AppColors(

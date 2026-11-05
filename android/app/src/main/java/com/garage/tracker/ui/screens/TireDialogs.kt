@@ -87,8 +87,8 @@ fun TireSetDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = season != null && name.isNotBlank() && (km.isBlank() || km.toIntOrNull() != null),
-                onClick = { onSave(name.trim(), season!!, brand.trim(), size.trim(), km.toIntOrNull() ?: 0, mountNow); onDismiss() },
+                enabled = season != null && name.isNotBlank() && (km.isBlank() || km.toOdometer() != null),
+                onClick = { onSave(name.trim(), season!!, brand.trim(), size.trim(), km.toOdometer() ?: 0, mountNow); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
@@ -134,8 +134,8 @@ fun SwapDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = target != null && odo.toIntOrNull() != null && (cost.isBlank() || cost.toNumber() != null),
-                onClick = { onConfirm(target!!, date.toString(), odo.toInt(), cost.toNumber() ?: 0.0, note.trim()); onDismiss() },
+                enabled = target != null && odo.toOdometer() != null && (cost.isBlank() || cost.toMoney() != null),
+                onClick = { onConfirm(target!!, date.toString(), odo.toOdometer()!!, cost.toMoney() ?: 0.0, note.trim()); onDismiss() },
             ) { Text("Swap") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
@@ -171,8 +171,8 @@ fun TireEventDialog(
     val isSwap = type == TireEventType.SWAP
     val isPuncture = type == TireEventType.PUNCTURE
     val isTread = type == TireEventType.TREAD
-    val readings = wheelNames.keys.map { tread[it]?.toNumber() }
-    val treadOk = tread.values.all { it.isBlank() || it.toNumber() != null } && readings.any { it != null }
+    val readings = wheelNames.keys.map { tread[it]?.toMm() }
+    val treadOk = tread.values.all { it.isBlank() || it.toMm() != null } && readings.any { it != null }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -216,15 +216,15 @@ fun TireEventDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = type != null && odo.toIntOrNull() != null &&
+                enabled = type != null && odo.toOdometer() != null &&
                     (!isPuncture || wheel != null) && (!isTread || treadOk) &&
-                    (isTread || cost.isBlank() || cost.toNumber() != null),
+                    (isTread || cost.isBlank() || cost.toMoney() != null),
                 onClick = {
                     onSave(
-                        type!!, date.toString(), odo.toInt(), if (isPuncture) wheel else null, note.trim(),
-                        if (isTread) 0.0 else cost.toNumber() ?: 0.0,
-                        if (isTread) tread["FL"]?.toNumber() else null, if (isTread) tread["FR"]?.toNumber() else null,
-                        if (isTread) tread["RL"]?.toNumber() else null, if (isTread) tread["RR"]?.toNumber() else null,
+                        type!!, date.toString(), odo.toOdometer()!!, if (isPuncture) wheel else null, note.trim(),
+                        if (isTread) 0.0 else cost.toMoney() ?: 0.0,
+                        if (isTread) tread["FL"]?.toMm() else null, if (isTread) tread["FR"]?.toMm() else null,
+                        if (isTread) tread["RL"]?.toMm() else null, if (isTread) tread["RR"]?.toMm() else null,
                         draft.pending.toList(), draft.removed.toList(),
                     )
                     onDismiss()
@@ -253,7 +253,7 @@ fun BrakeDialog(
     var rear by remember { mutableStateOf(initial?.rearMm?.toString() ?: "") }
     var cost by remember { mutableStateOf(initial?.cost?.takeIf { it > 0 }?.toString() ?: "") }
     var note by remember { mutableStateOf(initial?.note ?: "") }
-    val f = front.toNumber(); val r = rear.toNumber()
+    val f = front.toMm(); val r = rear.toMm()
     val mmOk = (front.isBlank() || f != null) && (rear.isBlank() || r != null) && (f != null || r != null) &&
         (f ?: 0.0) in 0.0..30.0 && (r ?: 0.0) in 0.0..30.0
 
@@ -281,8 +281,8 @@ fun BrakeDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = type != null && odo.toIntOrNull() != null && mmOk && (cost.isBlank() || cost.toNumber() != null),
-                onClick = { onSave(type!!, date.toString(), odo.toInt(), f, r, cost.toNumber() ?: 0.0, note.trim(), draft.pending.toList(), draft.removed.toList()); onDismiss() },
+                enabled = type != null && odo.toOdometer() != null && mmOk && (cost.isBlank() || cost.toMoney() != null),
+                onClick = { onSave(type!!, date.toString(), odo.toOdometer()!!, f, r, cost.toMoney() ?: 0.0, note.trim(), draft.pending.toList(), draft.removed.toList()); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

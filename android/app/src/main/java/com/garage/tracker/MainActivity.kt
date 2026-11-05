@@ -45,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.garage.tracker.data.*
 import com.garage.tracker.notifications.ReminderScheduler
 import com.garage.tracker.ui.screens.*
+import com.garage.tracker.ui.theme.CoralFg
 import com.garage.tracker.ui.theme.Cream
 import com.garage.tracker.ui.theme.GarageTheme
 import kotlinx.coroutines.launch
@@ -154,6 +155,11 @@ private fun GarageAppContent(vm: GarageViewModel) {
     var brakePreset by remember { mutableStateOf<String?>(null) }
     var prefill by remember { mutableStateOf("" to "") }
     val snackbar = remember { SnackbarHostState() }
+
+    // Anything that deletes for good asks first.
+    var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    fun <T> ask(what: String, action: (T) -> Unit): (T) -> Unit =
+        { item -> confirm = "Delete $what? This can't be undone." to { action(item) } }
 
     LaunchedEffect(message) {
         message?.let { snackbar.showSnackbar(it); vm.clearMessage() }
@@ -314,11 +320,12 @@ private fun GarageAppContent(vm: GarageViewModel) {
                                     else "About ${"%,d".format(left)} km left (due at ${"%,d".format(sch.lastDoneOdometer + sch.intervalKm)} km)",
                                 )
                             },
-                            onDeleteSchedule = vm::deleteSchedule,
+                            onDeleteSchedule = ask("this service and its history") { s: MaintenanceSchedule -> vm.deleteSchedule(s) },
                         )
                         "expenses" -> AnalyticsScreen(
                             active, logs, insurance = insurancePlan, onInsurance = { dialog = "insurance" },
-                            onEdit = { editingExpense = it; dialog = "entry" }, onDelete = vm::deleteExpense,
+                            onEdit = { editingExpense = it; dialog = "entry" },
+                            onDelete = ask("this entry") { e: ExpenseLog -> vm.deleteExpense(e) },
                         )
                         "tires" -> TiresScreen(
                             vehicle = active, sets = tireSets, events = tireEvents,
@@ -329,29 +336,29 @@ private fun GarageAppContent(vm: GarageViewModel) {
                             onSwap = { setTarget = null; dialog = "swap" },
                             onLogEvent = { type, wheel -> editingEvent = null; eventPreset = type to wheel; dialog = "tireEvent" },
                             onEditEvent = { editingEvent = it; eventPreset = null to null; dialog = "tireEvent" },
-                            onDeleteEvent = vm::deleteTireEvent,
+                            onDeleteEvent = ask("this tire entry") { e: TireEvent -> vm.deleteTireEvent(e) },
                         )
                         "brakes" -> BrakesScreen(
                             vehicle = active, entries = brakeEntries,
                             onLog = { type -> editingBrake = null; brakePreset = type; dialog = "brake" },
                             onEdit = { editingBrake = it; brakePreset = null; dialog = "brake" },
-                            onDelete = vm::deleteBrakeEntry,
+                            onDelete = ask("this brake entry") { e: BrakeEntry -> vm.deleteBrakeEntry(e) },
                         )
                         "wash" -> WashScreen(
                             washes = washes,
                             onLog = { editingWash = null; dialog = "wash" },
                             onEdit = { editingWash = it; dialog = "wash" },
-                            onDelete = vm::deleteExpense,
+                            onDelete = ask("this wash") { e: ExpenseLog -> vm.deleteExpense(e) },
                         )
                         "notes" -> NotesScreen(
                             notes = notes,
                             onAdd = { editingNote = null; dialog = "note" },
                             onEdit = { editingNote = it; dialog = "note" },
                             onToggle = vm::toggleNoteDone,
-                            onDelete = vm::deleteNote,
+                            onDelete = ask("this note") { n: CarNote -> vm.deleteNote(n) },
                             onShare = { shareNotes(context, "${active.make} ${active.model}", active.currentOdometer, notes.filter { !it.done }) },
                         )
-                        "reminders" -> RemindersScreen(reminders, list, vm::deleteReminder)
+                        "reminders" -> RemindersScreen(reminders, list, ask("this reminder") { r: Reminder -> vm.deleteReminder(r) })
                         else -> SettingsScreen(
                             vehicle = active, settings = settings, photoFile = photo, photoVersion = photoVersion,
                             onDueSoonChange = vm::setDueSoonKm, onReminderHourChange = vm::setReminderHour,
@@ -361,6 +368,8 @@ private fun GarageAppContent(vm: GarageViewModel) {
                             onChooseBackupFolder = { backupFolderPicker.launch(null) },
                             onBackupNow = vm::backupNow,
                             onStopAutoBackup = vm::stopAutoBackup,
+                            loadStorage = { vm.storageUsage() },
+                            onClearTemp = { vm.clearTemporaryFiles() },
                             onAddVehicle = { dialog = "addVehicle" },
                             onEditVehicle = { dialog = "editVehicle" },
                             onSetOdometer = { dialog = "odometer" },
@@ -378,6 +387,16 @@ private fun GarageAppContent(vm: GarageViewModel) {
     }
 
     pendingPhoto?.let { p -> PhotoPrepareDialog(p.bitmap, onUse = vm::commitPhoto, onCancel = vm::cancelPhoto) }
+
+    confirm?.let { (message, action) ->
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text("Are you sure?") },
+            text = { Text(message) },
+            confirmButton = { TextButton({ action(); confirm = null }) { Text("Delete", color = CoralFg) } },
+            dismissButton = { TextButton({ confirm = null }) { Text("Cancel") } },
+        )
+    }
 
     when (dialog) {
         "addVehicle" -> VehicleDialog(null, settings.savedColors, vm::addSavedColor, vm::removeSavedColor, { dialog = null }, vm::addVehicle)
@@ -422,7 +441,7 @@ private fun GarageAppContent(vm: GarageViewModel) {
                 ServiceDoneDialog(
                     schedule = s, initial = rec, defaultOdometer = v.currentOdometer, onDismiss = { dialog = null },
                     onSave = { date, odo, cost, note, files, removed -> vm.saveServiceRecord(s, rec, date, odo, cost, note, files, removed) },
-                    onDelete = rec?.let { r -> { vm.deleteServiceRecord(r); dialog = null } },
+                    onDelete = rec?.let { r -> { confirm = "Delete this record? This can't be undone." to { vm.deleteServiceRecord(r) }; dialog = null } },
                 )
             }
         }

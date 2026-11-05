@@ -65,13 +65,18 @@ fun TireCarDiagram(
             Icon(centerIcon, null, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(34.dp))
         }
         spots.forEach { spot ->
-            Box(Modifier.offset(spot.x.dp, spot.y.dp).size(width = 26.dp, height = 54.dp)) {
+            // a 48 dp wide touch target around the 26 dp wheel, so it is easy to hit with a thumb
+            Box(
+                Modifier.offset((spot.x - 11).dp, (spot.y - 3).dp).size(width = 48.dp, height = 60.dp)
+                    .clickable { onWheelClick(spot.id) },
+                contentAlignment = Alignment.Center,
+            ) {
+            Box(Modifier.size(width = 26.dp, height = 54.dp)) {
                 Box(
                     Modifier.fillMaxSize()
                         .clip(RoundedCornerShape(8.dp))
                         .background(wheelColor)
-                        .border(2.dp, Color.Black.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                        .clickable { onWheelClick(spot.id) },
+                        .border(2.dp, Color.Black.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -86,6 +91,7 @@ fun TireCarDiagram(
                         contentAlignment = Alignment.Center,
                     ) { Text("$n", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                 }
+            }
             }
         }
     }

@@ -1,18 +1,22 @@
 package com.garage.tracker.data
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+/** Bump this (and add a migration) whenever the tables change. */
+const val DB_VERSION = 8
+
 @Database(
     entities = [
         Vehicle::class, MaintenanceSchedule::class, ExpenseLog::class, Reminder::class,
         TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class, CarNote::class, MaintenanceRecord::class, Attachment::class,
     ],
-    version = 8,
+    version = DB_VERSION,
     exportSchema = false,
 )
 abstract class GarageDatabase : RoomDatabase() {
@@ -31,9 +35,9 @@ abstract class GarageDatabase : RoomDatabase() {
         @Volatile private var instance: GarageDatabase? = null
 
         fun get(context: Context): GarageDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(
+            instance ?: run { snapshotBeforeUpgrade(context); Room.databaseBuilder(
                 context.applicationContext, GarageDatabase::class.java, "garage.db",
-            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).fallbackToDestructiveMigration().build().also { instance = it }
+            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).fallbackToDestructiveMigrationFrom(1).build().also { instance = it } }
         }
     }
 }
@@ -127,5 +131,24 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_vehicleId` ON `attachments` (`vehicleId`)")
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_ownerId` ON `attachments` (`ownerId`)")
+    }
+}
+
+/**
+ * Before Room upgrades the database, keep a copy of it next to the original (garage.db.before-vN).
+ * If an upgrade ever goes wrong, the data is still there. Never blocks start-up if it can't copy.
+ */
+private fun snapshotBeforeUpgrade(context: Context) {
+    runCatching {
+        val file = context.getDatabasePath("garage.db")
+        if (!file.exists()) return
+        val oldVersion = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY).use { it.version }
+        if (oldVersion in 1 until DB_VERSION) {
+            // fold the write-ahead log into the main file first so the copy is complete
+            SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+                db.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { it.moveToFirst() }
+            }
+            file.copyTo(java.io.File(file.path + ".before-v$DB_VERSION"), overwrite = true)
+        }
     }
 }
