@@ -27,6 +27,8 @@ fun MaintenanceScreen(
     onEditSchedule: (MaintenanceSchedule) -> Unit,
     onMarkDone: (MaintenanceSchedule) -> Unit,
     onEditRecord: (MaintenanceSchedule, MaintenanceRecord) -> Unit,
+    expenses: List<ExpenseLog>,
+    onEditExpense: (ExpenseLog) -> Unit,
     onRemind: (MaintenanceSchedule) -> Unit,
     onDeleteSchedule: (MaintenanceSchedule) -> Unit,
     modifier: Modifier = Modifier,
@@ -56,6 +58,8 @@ fun MaintenanceScreen(
             MaintenanceCard(
                 s, vehicle.currentOdometer, dueSoonKm,
                 records = records.filter { it.scheduleId == s.scheduleId },
+                linked = expenses.filter { it.scheduleId == s.scheduleId },
+                onEditExpense = onEditExpense,
                 onEditRecord = { onEditRecord(s, it) },
                 onDone = { onMarkDone(s) }, onRemind = { onRemind(s) },
                 onEdit = { onEditSchedule(s) }, onDelete = { onDeleteSchedule(s) },
@@ -68,6 +72,7 @@ fun MaintenanceScreen(
 private fun MaintenanceCard(
     s: MaintenanceSchedule, odometer: Int, dueSoonKm: Int,
     records: List<MaintenanceRecord>, onEditRecord: (MaintenanceRecord) -> Unit,
+    linked: List<ExpenseLog>, onEditExpense: (ExpenseLog) -> Unit,
     onDone: () -> Unit, onRemind: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit,
 ) {
     var open by rememberSaveable(s.scheduleId) { mutableStateOf(false) }
@@ -97,6 +102,22 @@ private fun MaintenanceCard(
             DetailRow("Last done at", "${"%,d".format(s.lastDoneOdometer)} km")
             DetailRow("Next due at", "${"%,d".format(dueAt)} km")
             DetailRow("Status", h.label)
+            if (s.parts.isNotBlank()) DetailRow("Your parts", s.parts)
+            if (s.notes.isNotBlank()) DetailRow("Notes", s.notes)
+            // the cost on a service record is mirrored into Expenses with the id EXP_<recordId>, so it is not counted twice
+            val spentRows = linked.filter { l -> records.none { "EXP_${it.recordId}" == l.logId } }
+            val spent = records.sumOf { it.cost } + spentRows.sumOf { it.cost }
+            if (spent > 0) DetailRow("Total spent on this service", money(spent))
+            if (spentRows.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("Linked expenses", style = MaterialTheme.typography.labelLarge, color = InkSoft)
+                spentRows.forEach { l ->
+                    Row(Modifier.fillMaxWidth().clickable { onEditExpense(l) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${l.date} · ${money(l.cost)}" + if (l.note.isNotBlank()) " · ${l.note}" else "", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Icon(Icons.Default.Edit, "Edit expense", tint = InkSoft, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
             if (records.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Text("History", style = MaterialTheme.typography.labelLarge, color = InkSoft)

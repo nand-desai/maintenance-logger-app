@@ -27,6 +27,9 @@ data class MaintenanceSchedule(
     val serviceName: String,
     val intervalKm: Int,
     val lastDoneOdometer: Int,
+    /** What you usually use: oil grade, filter part number... */
+    @ColumnInfo(defaultValue = "''") val parts: String = "",
+    @ColumnInfo(defaultValue = "''") val notes: String = "",
 )
 
 @Entity(
@@ -44,6 +47,8 @@ data class ExpenseLog(
     val fuelLiters: Double = 0.0,
     /** What an "Other" expense was for, e.g. "Remote starter". */
     @ColumnInfo(defaultValue = "''") val note: String = "",
+    /** The maintenance item this cost belongs to, if any. */
+    val scheduleId: String? = null,
 )
 
 @Entity(tableName = "reminders")

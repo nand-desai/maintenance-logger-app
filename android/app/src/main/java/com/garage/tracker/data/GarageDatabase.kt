@@ -9,7 +9,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /** Bump this (and add a migration) whenever the tables change. */
-const val DB_VERSION = 8
+const val DB_VERSION = 9
 
 @Database(
     entities = [
@@ -37,7 +37,7 @@ abstract class GarageDatabase : RoomDatabase() {
         fun get(context: Context): GarageDatabase = instance ?: synchronized(this) {
             instance ?: run { snapshotBeforeUpgrade(context); Room.databaseBuilder(
                 context.applicationContext, GarageDatabase::class.java, "garage.db",
-            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).fallbackToDestructiveMigrationFrom(1).build().also { instance = it } }
+            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).fallbackToDestructiveMigrationFrom(1).build().also { instance = it } }
         }
     }
 }
@@ -150,5 +150,14 @@ private fun snapshotBeforeUpgrade(context: Context) {
             }
             file.copyTo(java.io.File(file.path + ".before-v$DB_VERSION"), overwrite = true)
         }
+    }
+}
+
+/** Your usual parts and notes on a maintenance item, and expenses that link to one. */
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `maintenance_schedules` ADD COLUMN `parts` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE `maintenance_schedules` ADD COLUMN `notes` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE `expense_logs` ADD COLUMN `scheduleId` TEXT")
     }
 }

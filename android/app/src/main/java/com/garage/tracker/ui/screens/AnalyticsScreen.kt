@@ -33,6 +33,7 @@ fun AnalyticsScreen(
     logs: List<ExpenseLog>,
     insurance: RecurringExpense?,
     onInsurance: () -> Unit,
+    schedules: List<MaintenanceSchedule>,
     onEdit: (ExpenseLog) -> Unit,
     onDelete: (ExpenseLog) -> Unit,
     modifier: Modifier = Modifier,
@@ -120,7 +121,7 @@ fun AnalyticsScreen(
                 }
             }
         }
-        items(logs, key = { it.logId }) { l -> ExpenseCard(l, onEdit, onDelete) }
+        items(logs, key = { it.logId }) { l -> ExpenseCard(l, schedules.firstOrNull { it.scheduleId == l.scheduleId }?.serviceName, onEdit, onDelete) }
     }
 }
 
@@ -131,7 +132,7 @@ private fun expenseTitle(l: ExpenseLog) = when {
 }
 
 @Composable
-private fun ExpenseCard(l: ExpenseLog, onEdit: (ExpenseLog) -> Unit, onDelete: (ExpenseLog) -> Unit) {
+private fun ExpenseCard(l: ExpenseLog, serviceName: String?, onEdit: (ExpenseLog) -> Unit, onDelete: (ExpenseLog) -> Unit) {
     // a cost copied from a service, tire or brake record shows that record's receipts
     val owner = l.logId.removePrefix("EXP_")
     var open by rememberSaveable(l.logId) { mutableStateOf(false) }
@@ -151,6 +152,8 @@ private fun ExpenseCard(l: ExpenseLog, onEdit: (ExpenseLog) -> Unit, onDelete: (
             if (l.category == Categories.OTHER) DetailRow("Category", "Other")
             if (l.note.isNotBlank()) DetailRow(if (l.category == Categories.OTHER) "What for" else "Note", l.note)
             DetailRow("Odometer", "${"%,d".format(l.odometer)} km")
+            if (serviceName != null) DetailRow("Linked to service", serviceName)
+            if (l.logId.startsWith("EXP_")) Text("Copied from a record: Edit opens that record.", color = InkSoft, style = MaterialTheme.typography.bodySmall)
             AttachmentList(owner)
             if (l.fuelLiters > 0) {
                 DetailRow("Fuel", "%.1f L".format(l.fuelLiters))

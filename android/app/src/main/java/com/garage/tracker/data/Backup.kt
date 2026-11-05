@@ -32,7 +32,7 @@ object Backup {
         root.put("maintenance_schedules", JSONArray(db.scheduleDao().getAll().map {
             JSONObject().put("schedule_id", it.scheduleId).put("vehicle_id", it.vehicleId)
                 .put("service_name", it.serviceName).put("interval_km", it.intervalKm)
-                .put("last_done_odometer", it.lastDoneOdometer)
+                .put("last_done_odometer", it.lastDoneOdometer).put("parts", it.parts).put("notes", it.notes)
         }))
         root.put("maintenance_records", JSONArray(db.recordDao().all().map {
             JSONObject().put("record_id", it.recordId).put("schedule_id", it.scheduleId).put("vehicle_id", it.vehicleId)
@@ -42,7 +42,7 @@ object Backup {
         root.put("expense_logs", JSONArray(db.expenseDao().getAll().map {
             JSONObject().put("log_id", it.logId).put("vehicle_id", it.vehicleId).put("date", it.date)
                 .put("odometer", it.odometer).put("category", it.category).put("cost", it.cost)
-                .put("fuel_liters", it.fuelLiters).put("note", it.note)
+                .put("fuel_liters", it.fuelLiters).put("note", it.note).put("schedule_id", it.scheduleId ?: JSONObject.NULL)
         }))
         root.put("reminders", JSONArray(db.reminderDao().getAll().map {
             JSONObject().put("reminder_id", it.reminderId).put("vehicle_id", it.vehicleId ?: JSONObject.NULL)
@@ -97,7 +97,8 @@ object Backup {
         }
         val schedules = root.optJSONArray("maintenance_schedules").objects().map {
             MaintenanceSchedule(it.getString("schedule_id"), it.getString("vehicle_id"),
-                it.getString("service_name"), it.getInt("interval_km"), it.getInt("last_done_odometer"))
+                it.getString("service_name"), it.getInt("interval_km"), it.getInt("last_done_odometer"),
+                it.optString("parts", ""), it.optString("notes", ""))
         }
         val records = root.optJSONArray("maintenance_records").objects().map {
             MaintenanceRecord(it.getString("record_id"), it.getString("vehicle_id"), it.getString("schedule_id"),
@@ -112,7 +113,8 @@ object Backup {
         val expenses = root.optJSONArray("expense_logs").objects().map {
             ExpenseLog(it.getString("log_id"), it.getString("vehicle_id"), it.getString("date"),
                 it.getInt("odometer"), it.getString("category"), it.getDouble("cost"),
-                it.optDouble("fuel_liters", 0.0), it.optString("note", ""))
+                it.optDouble("fuel_liters", 0.0), it.optString("note", ""),
+                if (it.isNull("schedule_id")) null else it.optString("schedule_id").ifBlank { null })
         }
         val reminders = root.optJSONArray("reminders").objects().map {
             Reminder(it.getString("reminder_id"), if (it.isNull("vehicle_id")) null else it.getString("vehicle_id"),

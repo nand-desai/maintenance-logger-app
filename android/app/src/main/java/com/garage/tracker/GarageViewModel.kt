@@ -199,9 +199,9 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Maintenance ---------------------------------------------------------------------------
 
-    fun addSchedule(name: String, interval: Int, lastDone: Int) = viewModelScope.launch {
+    fun addSchedule(name: String, interval: Int, lastDone: Int, parts: String = "", notes: String = "") = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
-        db.scheduleDao().upsert(MaintenanceSchedule(newId("SCH"), v.vehicleId, name, interval, lastDone))
+        db.scheduleDao().upsert(MaintenanceSchedule(newId("SCH"), v.vehicleId, name, interval, lastDone, parts, notes))
     }
 
     /**
@@ -217,7 +217,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             val r = MaintenanceRecord(existing?.recordId ?: newId("MNT"), v.vehicleId, s.scheduleId, s.serviceName, date, odometer, cost, note)
             db.withTransaction {
                 db.recordDao().upsert(r)
-                mirrorCost(r.recordId, v.vehicleId, date, odometer, cost, s.serviceName + if (note.isNotBlank()) " · $note" else "")
+                mirrorCost(r.recordId, v.vehicleId, date, odometer, cost, s.serviceName + if (note.isNotBlank()) " · $note" else "", s.scheduleId)
                 refreshLastDone(s)
             }
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
@@ -252,10 +252,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Expenses ------------------------------------------------------------------------------
 
-    fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String = "", files: List<Uri> = emptyList()) =
+    fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String = "", files: List<Uri> = emptyList(), scheduleId: String? = null) =
         viewModelScope.launch {
             val v = activeVehicle.value ?: return@launch
-            val e = ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, litres, note)
+            val e = ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, litres, note, scheduleId)
             db.expenseDao().upsert(e)
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
             applyAttachments("expense", e.logId, files, emptyList())
@@ -344,9 +344,9 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Keeps a matching Service expense in sync with a cost entered on a tire or brake entry. */
-    private suspend fun mirrorCost(sourceId: String, vehicleId: String, date: String, odometer: Int, cost: Double, what: String) {
+    private suspend fun mirrorCost(sourceId: String, vehicleId: String, date: String, odometer: Int, cost: Double, what: String, scheduleId: String? = null) {
         val id = "EXP_$sourceId"
-        if (cost > 0) db.expenseDao().upsert(ExpenseLog(id, vehicleId, date, odometer, Categories.SERVICE, cost, 0.0, what))
+        if (cost > 0) db.expenseDao().upsert(ExpenseLog(id, vehicleId, date, odometer, Categories.SERVICE, cost, 0.0, what, scheduleId))
         else db.expenseDao().deleteById(id)
     }
 

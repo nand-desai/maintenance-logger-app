@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -50,14 +51,17 @@ private fun parseDate(s: String?): LocalDate =
 /** Accepts "6,5" as well as "6.5". */
 
 /** Add an expense, or edit one when [initial] is given. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AddEntryDialog(
     initial: ExpenseLog?,
     defaultOdometer: Int,
     previousFuelOdometer: Int?,
+    schedules: List<MaintenanceSchedule>,
     onDismiss: () -> Unit,
-    onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String, files: List<Uri>, removed: List<Attachment>) -> Unit,
+    onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String, files: List<Uri>, removed: List<Attachment>, scheduleId: String?) -> Unit,
 ) {
+    var scheduleId by remember { mutableStateOf(initial?.scheduleId) }
     // a cost copied from a service, tire or brake record shows that record's receipts
     val draft = rememberAttachmentDraft(initial?.logId?.removePrefix("EXP_"))
     var date by remember { mutableStateOf(parseDate(initial?.date)) }
@@ -87,6 +91,13 @@ fun AddEntryDialog(
                     }
                 }
                 if (category == Categories.OTHER) Field(note, { note = it }, "What was it for? (e.g. remote starter)")
+                if (category == Categories.SERVICE && schedules.isNotEmpty()) {
+                    Text("Link to a service (optional): it then shows on that service", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(scheduleId == null, { scheduleId = null }, label = { Text("None") })
+                        schedules.forEach { s -> FilterChip(scheduleId == s.scheduleId, { scheduleId = s.scheduleId }, label = { Text(s.serviceName) }) }
+                    }
+                }
                 Field(cost, { cost = it }, "Cost (CAD)", dec)
                 if (category == Categories.FUEL) {
                     Field(litres, { litres = it }, "Fuel (litres)", dec)
@@ -104,6 +115,7 @@ fun AddEntryDialog(
                         // keep the description of a service/tire/brake expense; "Other" uses what was typed
                         if (category == Categories.OTHER) note.trim() else if (initial?.category != Categories.OTHER) initial?.note.orEmpty() else "",
                         draft.pending.toList(), draft.removed.toList(),
+                        if (category == Categories.SERVICE) scheduleId else null,
                     )
                     onDismiss()
                 },
@@ -330,6 +342,7 @@ fun ServiceDoneDialog(
                     placeholder = { Text("e.g. synthetic 5W-30, which garage, what the mechanic said") },
                     minLines = 3, modifier = Modifier.fillMaxWidth(),
                 )
+                if (schedule.parts.isNotBlank()) Text("Usual parts: ${schedule.parts}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 AttachmentsField(draft)
                 Text("A cost is added to your Expenses automatically.", style = MaterialTheme.typography.bodySmall)
                 if (onDelete != null) TextButton(onClick = onDelete) { Text("Delete this record") }
@@ -353,7 +366,9 @@ private val serviceSuggestions = listOf(
 /** Add a maintenance item, or edit one when [initial] is given. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismiss: () -> Unit, onSave: (String, Int, Int) -> Unit) {
+fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismiss: () -> Unit, onSave: (name: String, interval: Int, last: Int, parts: String, notes: String) -> Unit) {
+    var parts by remember { mutableStateOf(initial?.parts ?: "") }
+    var notes by remember { mutableStateOf(initial?.notes ?: "") }
     var name by remember { mutableStateOf(initial?.serviceName ?: "") }
     var interval by remember { mutableStateOf(initial?.intervalKm?.toString() ?: "") }
     var last by remember { mutableStateOf((initial?.lastDoneOdometer ?: currentOdometer).toString()) }
@@ -373,12 +388,22 @@ fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismis
                 Field(name, { name = it }, "Service (e.g. Engine oil & filter)")
                 Field(interval, { interval = it }, "Repeat every (km)", num)
                 Field(last, { last = it }, "Last done at (km)", num)
+                OutlinedTextField(
+                    parts, { parts = it }, label = { Text("Your parts and specs (optional)") },
+                    placeholder = { Text("e.g. Mobil 1 5W-30, 5.4 L · filter WIX 57060") },
+                    minLines = 2, modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    notes, { notes = it }, label = { Text("Notes (optional)") },
+                    placeholder = { Text("e.g. dealer does it free in the first 2 years") },
+                    minLines = 2, modifier = Modifier.fillMaxWidth(),
+                )
             }
         },
         confirmButton = {
             TextButton(
                 enabled = name.isNotBlank() && (interval.toOdometer() ?: 0) > 0 && last.toOdometer() != null,
-                onClick = { onSave(name.trim(), interval.toOdometer()!!, last.toOdometer()!!); onDismiss() },
+                onClick = { onSave(name.trim(), interval.toOdometer()!!, last.toOdometer()!!, parts.trim(), notes.trim()); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

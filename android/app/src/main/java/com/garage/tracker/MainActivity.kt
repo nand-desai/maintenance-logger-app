@@ -153,6 +153,20 @@ private fun GarageAppContent(vm: GarageViewModel) {
     var setTarget by remember { mutableStateOf<TireSet?>(null) }
     var eventPreset by remember { mutableStateOf<Pair<String?, String?>>(null to null) }
     var brakePreset by remember { mutableStateOf<String?>(null) }
+    // a cost copied from a service, tire or brake record is edited through that record
+    val editExpense: (ExpenseLog) -> Unit = { e ->
+        val src = e.logId.removePrefix("EXP_")
+        val rec = if (e.logId.startsWith("EXP_")) records.firstOrNull { it.recordId == src } else null
+        val sch = rec?.let { r -> schedules.firstOrNull { it.scheduleId == r.scheduleId } }
+        val ev = if (e.logId.startsWith("EXP_")) tireEvents.firstOrNull { it.eventId == src } else null
+        val br = if (e.logId.startsWith("EXP_")) brakeEntries.firstOrNull { it.entryId == src } else null
+        when {
+            rec != null && sch != null -> { doneTarget = sch; editingRecord = rec; dialog = "done" }
+            ev != null -> { editingEvent = ev; eventPreset = null to null; dialog = "tireEvent" }
+            br != null -> { editingBrake = br; brakePreset = null; dialog = "brake" }
+            else -> { editingExpense = e; dialog = "entry" }
+        }
+    }
     var prefill by remember { mutableStateOf("" to "") }
     val snackbar = remember { SnackbarHostState() }
 
@@ -312,6 +326,7 @@ private fun GarageAppContent(vm: GarageViewModel) {
                             onEditSchedule = { editingSchedule = it; dialog = "schedule" },
                             onMarkDone = { doneTarget = it; editingRecord = null; dialog = "done" },
                             onEditRecord = { sch, rec -> doneTarget = sch; editingRecord = rec; dialog = "done" },
+                            expenses = logs, onEditExpense = editExpense,
                             onRemind = { sch ->
                                 val left = sch.kmRemaining(active.currentOdometer)
                                 openReminderDialog(
@@ -324,7 +339,8 @@ private fun GarageAppContent(vm: GarageViewModel) {
                         )
                         "expenses" -> AnalyticsScreen(
                             active, logs, insurance = insurancePlan, onInsurance = { dialog = "insurance" },
-                            onEdit = { editingExpense = it; dialog = "entry" },
+                            schedules = schedules,
+                            onEdit = editExpense,
                             onDelete = ask("this entry") { e: ExpenseLog -> vm.deleteExpense(e) },
                         )
                         "tires" -> TiresScreen(
@@ -413,10 +429,11 @@ private fun GarageAppContent(vm: GarageViewModel) {
                 initial = editing,
                 defaultOdometer = v.currentOdometer,
                 previousFuelOdometer = logs.filter { it.category == Categories.FUEL && it.logId != editing?.logId }.maxOfOrNull { it.odometer },
+                schedules = schedules,
                 onDismiss = { dialog = null },
-            ) { date, odo, category, cost, litres, note, files, removed ->
-                if (editing != null) vm.updateExpense(editing.copy(date = date, odometer = odo, category = category, cost = cost, fuelLiters = litres, note = note), files, removed)
-                else vm.addExpense(date, odo, category, cost, litres, note, files)
+            ) { date, odo, category, cost, litres, note, files, removed, scheduleId ->
+                if (editing != null) vm.updateExpense(editing.copy(date = date, odometer = odo, category = category, cost = cost, fuelLiters = litres, note = note, scheduleId = scheduleId), files, removed)
+                else vm.addExpense(date, odo, category, cost, litres, note, files, scheduleId)
             }
         }
         "wash" -> {
@@ -429,9 +446,9 @@ private fun GarageAppContent(vm: GarageViewModel) {
 
         "schedule" -> active?.let { v ->
             val editing = editingSchedule
-            ScheduleDialog(v.currentOdometer, editing, { dialog = null }) { name, interval, last ->
-                if (editing != null) vm.updateSchedule(editing.copy(serviceName = name, intervalKm = interval, lastDoneOdometer = last))
-                else vm.addSchedule(name, interval, last)
+            ScheduleDialog(v.currentOdometer, editing, { dialog = null }) { name, interval, last, parts, notes ->
+                if (editing != null) vm.updateSchedule(editing.copy(serviceName = name, intervalKm = interval, lastDoneOdometer = last, parts = parts, notes = notes))
+                else vm.addSchedule(name, interval, last, parts, notes)
             }
         }
 
