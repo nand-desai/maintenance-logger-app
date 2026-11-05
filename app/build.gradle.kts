@@ -43,7 +43,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     implementation("io.github.sceneview:sceneview:2.2.1")
 
@@ -51,7 +50,6 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

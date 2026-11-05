@@ -57,3 +57,18 @@ interface ExpenseDao {
     @Delete
     suspend fun delete(log: ExpenseLog)
 }
+
+@Dao
+interface ReminderDao {
+    @Query("SELECT * FROM reminders ORDER BY triggerAt")
+    fun observeAll(): Flow<List<Reminder>>
+
+    @Query("SELECT * FROM reminders")
+    suspend fun getAll(): List<Reminder>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(reminder: Reminder)
+
+    @Delete
+    suspend fun delete(reminder: Reminder)
+}

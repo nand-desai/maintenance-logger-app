@@ -9,7 +9,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.garage.tracker.data.Categories
 import com.garage.tracker.data.entryMpg
-import java.time.LocalDate
+import android.text.format.DateFormat
+import androidx.compose.ui.platform.LocalContext
+import java.time.*
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 private val num = KeyboardOptions(keyboardType = KeyboardType.Number)
 private val dec = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -122,19 +126,60 @@ fun AddScheduleDialog(currentOdometer: Int, onDismiss: () -> Unit, onSave: (Stri
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SpreadsheetIdDialog(current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var id by remember { mutableStateOf(current) }
+fun AddReminderDialog(onDismiss: () -> Unit, onSave: (title: String, note: String, triggerAt: Long) -> Unit) {
+    val context = LocalContext.current
+    var title by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
+    var time by remember { mutableStateOf(LocalTime.of(9, 0)) }
+    var pickDate by remember { mutableStateOf(false) }
+    var pickTime by remember { mutableStateOf(false) }
+
+    val whenMillis = LocalDateTime.of(date, time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val inFuture = whenMillis > System.currentTimeMillis()
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Google Sheets backup") },
+        title = { Text("Schedule reminder") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Paste the ID from your spreadsheet URL (docs.google.com/spreadsheets/d/<ID>/edit).", style = MaterialTheme.typography.bodySmall)
-                Field(id, { id = it }, "Spreadsheet ID")
+                Field(title, { title = it }, "What for? (e.g. Oil change)")
+                Field(note, { note = it }, "Note (optional)")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton({ pickDate = true }, Modifier.weight(1f)) { Text(date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))) }
+                    OutlinedButton({ pickTime = true }, Modifier.weight(1f)) { Text(time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))) }
+                }
+                if (!inFuture) Text("Pick a time in the future", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { TextButton(enabled = id.isNotBlank(), onClick = { onSave(id); onDismiss() }) { Text("Save") } },
+        confirmButton = {
+            TextButton(enabled = title.isNotBlank() && inFuture, onClick = { onSave(title.trim(), note.trim(), whenMillis); onDismiss() }) { Text("Schedule") }
+        },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )
+
+    if (pickDate) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(
+            onDismissRequest = { pickDate = false },
+            confirmButton = {
+                TextButton({
+                    state.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
+                    pickDate = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton({ pickDate = false }) { Text("Cancel") } },
+        ) { DatePicker(state) }
+    }
+    if (pickTime) {
+        val state = rememberTimePickerState(time.hour, time.minute, DateFormat.is24HourFormat(context))
+        AlertDialog(
+            onDismissRequest = { pickTime = false },
+            confirmButton = { TextButton({ time = LocalTime.of(state.hour, state.minute); pickTime = false }) { Text("OK") } },
+            dismissButton = { TextButton({ pickTime = false }) { Text("Cancel") } },
+            text = { TimePicker(state) },
+        )
+    }
 }

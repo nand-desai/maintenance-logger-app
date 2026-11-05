@@ -43,6 +43,16 @@ data class ExpenseLog(
     val fuelGallons: Double = 0.0,
 )
 
+@Entity(tableName = "reminders")
+data class Reminder(
+    @PrimaryKey val reminderId: String,
+    val vehicleId: String?,
+    val title: String,
+    val note: String,
+    /** Epoch millis at which the notification should fire. */
+    val triggerAt: Long,
+)
+
 object Categories {
     const val FUEL = "Fuel"
     const val SERVICE = "Service"

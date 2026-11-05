@@ -4,7 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.garage.tracker.data.*
-import com.garage.tracker.sync.GoogleSheetsManager
+import com.garage.tracker.notifications.ReminderScheduler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.time.LocalDate
+import android.net.Uri
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,7 +18,7 @@ import java.util.UUID
 @OptIn(ExperimentalCoroutinesApi::class)
 class GarageViewModel(app: Application) : AndroidViewModel(app) {
     private val db = GarageDatabase.get(app)
-    val sheets = GoogleSheetsManager(app)
+    private val scheduler = ReminderScheduler(app)
 
     private val selectedId = MutableStateFlow<String?>(null)
 
@@ -32,8 +37,12 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { v -> v?.let { db.expenseDao().observeFor(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val _syncStatus = MutableStateFlow<String?>(null)
-    val syncStatus: StateFlow<String?> = _syncStatus
+    val reminders: StateFlow<List<Reminder>> =
+        db.reminderDao().observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** One-shot message for the snackbar. */
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message
 
     init {
         viewModelScope.launch {
@@ -80,16 +89,37 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteExpense(log: ExpenseLog) = viewModelScope.launch { db.expenseDao().delete(log) }
 
-    fun sync() = viewModelScope.launch {
-        _syncStatus.value = "Syncing…"
-        _syncStatus.value = sheets.sync().fold(
-            onSuccess = { "Synced with Google Sheets" },
-            onFailure = { "Sync failed: ${it.message}" },
-        )
+    fun addReminder(title: String, note: String, triggerAt: Long) = viewModelScope.launch {
+        val r = Reminder(newId("REM"), activeVehicle.value?.vehicleId, title, note, triggerAt)
+        db.reminderDao().upsert(r)
+        scheduler.schedule(r)
     }
 
-    fun reportSyncStatus(msg: String) { _syncStatus.value = msg }
-    fun clearSyncStatus() { _syncStatus.value = null }
+    fun deleteReminder(r: Reminder) = viewModelScope.launch {
+        scheduler.cancel(r)
+        db.reminderDao().delete(r)
+    }
+
+    /** Writes the backup JSON to the cache dir and returns the file, ready to be shared. */
+    suspend fun createBackupFile(): File = withContext(Dispatchers.IO) {
+        val dir = File(getApplication<Application>().cacheDir, "backups").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }
+        File(dir, "pitstop-backup-${LocalDate.now()}.json").also { it.writeText(Backup.toJson(db)) }
+    }
+
+    fun importBackup(uri: Uri) = viewModelScope.launch {
+        _message.value = runCatching {
+            val text = withContext(Dispatchers.IO) {
+                getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
+            }
+            val counts = Backup.restore(db, text)
+            scheduler.scheduleAll(db.reminderDao().getAll())
+            "Imported $counts"
+        }.getOrElse { "Import failed: ${it.message ?: "unreadable file"}" }
+    }
+
+    fun say(msg: String) { _message.value = msg }
+    fun clearMessage() { _message.value = null }
 
     private suspend fun seedSample() {
         val v = Vehicle("CAR_001", "Volkswagen", "Golf TSI", 2016, 58400, "#3B82F6")
