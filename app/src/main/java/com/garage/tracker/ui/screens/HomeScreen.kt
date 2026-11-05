@@ -51,6 +51,7 @@ fun HomeScreen(
     onAddVehicle: () -> Unit,
     onEditOdometer: () -> Unit,
     onPickPhoto: () -> Unit,
+    onCreateWithAi: () -> Unit,
     onOpen: (String) -> Unit,
     backupOn: Boolean,
     onSetupBackup: () -> Unit,
@@ -66,7 +67,7 @@ fun HomeScreen(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) { VehiclePhoto(photoFile, photoVersion, onPickPhoto) }
+        item(span = { GridItemSpan(maxLineSpan) }) { VehiclePhoto(photoFile, photoVersion, onPickPhoto, onCreateWithAi = onCreateWithAi) }
         item(span = { GridItemSpan(maxLineSpan) }) { GarageHeader(vehicle, vehicles, onSelectVehicle, onAddVehicle, onEditOdometer) }
         item(span = { GridItemSpan(maxLineSpan) }) { AttentionBanner(alerts, onOpen) }
         itemsIndexed(

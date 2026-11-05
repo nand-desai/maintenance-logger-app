@@ -46,6 +46,7 @@ fun SettingsScreen(
     onEditVehicle: () -> Unit,
     onSetOdometer: () -> Unit,
     onPickPhoto: () -> Unit,
+    onCreateWithAi: () -> Unit,
     onRemovePhoto: () -> Unit,
     insurance: RecurringExpense?,
     onInsurance: () -> Unit,
@@ -139,6 +140,7 @@ fun SettingsScreen(
         item {
             SoftCard {
                 VehiclePhoto(photoFile, photoVersion, onPickPhoto, height = 150.dp)
+                TextButton(onClick = onCreateWithAi) { Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Make a cartoon car with AI") }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onPickPhoto, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Photo, null); Spacer(Modifier.width(6.dp)); Text(if (photoFile?.exists() == true) "Change photo" else "Add photo") }

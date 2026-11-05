@@ -42,6 +42,7 @@ fun VehiclePhoto(
     onPick: () -> Unit,
     modifier: Modifier = Modifier,
     height: Dp = 200.dp,
+    onCreateWithAi: (() -> Unit)? = null,
 ) {
     val bitmap by produceState<ImageBitmap?>(null, file?.path, version) {
         value = withContext(Dispatchers.IO) {
@@ -64,13 +65,20 @@ fun VehiclePhoto(
                     Spacer(Modifier.width(8.dp))
                     Text("Choose photo")
                 }
+                if (onCreateWithAi != null) TextButton(onClick = onCreateWithAi) {
+                    Icon(Icons.Default.AutoAwesome, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Make a cartoon car with AI")
+                }
             }
         }
     } else {
+        // a cut-out car (transparent background) is shown whole; an ordinary photo fills the frame
+        val cutout = bmp.hasAlpha
         Image(
             bmp, "Vehicle photo",
-            frame.clickable { fullScreen = true },
-            contentScale = ContentScale.Crop,
+            frame.background(NeutralBg).clickable { fullScreen = true }.then(if (cutout) Modifier.padding(8.dp) else Modifier),
+            contentScale = if (cutout) ContentScale.Fit else ContentScale.Crop,
         )
     }
 

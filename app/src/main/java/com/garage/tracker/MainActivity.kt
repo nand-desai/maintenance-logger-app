@@ -103,6 +103,7 @@ private fun GarageApp(vm: GarageViewModel) {
     val tireEvents by vm.tireEvents.collectAsStateWithLifecycle()
     val brakeEntries by vm.brakeEntries.collectAsStateWithLifecycle()
     val notes by vm.notes.collectAsStateWithLifecycle()
+    val pendingPhoto by vm.pendingPhoto.collectAsStateWithLifecycle()
     val insurancePlan by vm.insurancePlan.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -266,6 +267,7 @@ private fun GarageApp(vm: GarageViewModel) {
                             onAddVehicle = { dialog = "addVehicle" },
                             onEditOdometer = { dialog = "odometer" },
                             onPickPhoto = ::pickPhoto,
+                            onCreateWithAi = { dialog = "aiImage" },
                             onOpen = { screen = it },
                             backupOn = settings.backupUri != null,
                             onSetupBackup = { screen = "settings" },
@@ -334,6 +336,7 @@ private fun GarageApp(vm: GarageViewModel) {
                             onEditVehicle = { dialog = "editVehicle" },
                             onSetOdometer = { dialog = "odometer" },
                             onPickPhoto = ::pickPhoto,
+                            onCreateWithAi = { dialog = "aiImage" },
                             onRemovePhoto = vm::removePhoto,
                             insurance = insurancePlan,
                             onInsurance = { dialog = "insurance" },
@@ -344,6 +347,8 @@ private fun GarageApp(vm: GarageViewModel) {
             }
         }
     }
+
+    pendingPhoto?.let { p -> PhotoPrepareDialog(p.bitmap, onUse = vm::commitPhoto, onCancel = vm::cancelPhoto) }
 
     when (dialog) {
         "addVehicle" -> VehicleDialog(null, settings.savedColors, vm::addSavedColor, vm::removeSavedColor, { dialog = null }, vm::addVehicle)
@@ -427,6 +432,7 @@ private fun GarageApp(vm: GarageViewModel) {
             val editing = editingNote
             NoteDialog(editing, v.currentOdometer, { dialog = null }) { tag, text, date, odo -> vm.saveNote(editing, tag, text, date, odo) }
         }
+        "aiImage" -> active?.let { v -> AiImageDialog(v, { dialog = null }) { dialog = null; pickPhoto() } }
         "reminder" -> AddReminderDialog(settings.reminderHour, prefill.first, prefill.second, { dialog = null }, vm::addReminder)
         "deleteVehicle" -> active?.let { v ->
             AlertDialog(

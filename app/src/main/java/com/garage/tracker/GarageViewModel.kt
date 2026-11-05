@@ -321,10 +321,16 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun photoFile(vehicleId: String) =
         File(File(getApplication<Application>().filesDir, "photos"), "$vehicleId.img")
 
-    /** Copies any picture into private storage, fixing its rotation and capping it at ~2000 px. */
+    /** A picture the user just picked, waiting for them to confirm (and optionally cut out the background). */
+    data class PendingPhoto(val vehicleId: String, val bitmap: Bitmap)
+
+    private val _pendingPhoto = MutableStateFlow<PendingPhoto?>(null)
+    val pendingPhoto: StateFlow<PendingPhoto?> = _pendingPhoto
+
+    /** Reads any picture (fixing its rotation, capped at ~2000 px) and opens the preview step. */
     fun importPhoto(uri: Uri) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
-        _message.value = runCatching {
+        runCatching {
             withContext(Dispatchers.IO) {
                 val resolver = getApplication<Application>().contentResolver
 
@@ -353,9 +359,23 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                         bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(degrees) }, true,
                     )
                 }
+                bitmap
+            }
+        }.onSuccess { _pendingPhoto.value = PendingPhoto(v.vehicleId, it) }
+            .onFailure { _message.value = "Couldn't use that picture: ${it.message}" }
+    }
 
-                val target = photoFile(v.vehicleId).also { it.parentFile?.mkdirs() }
-                val tmp = File(target.parentFile, "${v.vehicleId}.tmp")
+    fun cancelPhoto() { _pendingPhoto.value = null }
+
+    /** Saves the pending picture for its vehicle, first cutting out the background if asked. */
+    fun commitPhoto(removeBackground: Boolean, tolerance: Float) = viewModelScope.launch {
+        val pending = _pendingPhoto.value ?: return@launch
+        _pendingPhoto.value = null
+        _message.value = runCatching {
+            withContext(Dispatchers.Default) {
+                val bitmap = if (removeBackground) BackgroundRemover.remove(pending.bitmap, tolerance) else pending.bitmap
+                val target = photoFile(pending.vehicleId).also { it.parentFile?.mkdirs() }
+                val tmp = File(target.parentFile, "${pending.vehicleId}.tmp")
                 try {
                     tmp.outputStream().use {
                         bitmap.compress(if (bitmap.hasAlpha()) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, 90, it)
@@ -369,7 +389,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             _photoVersion.value++
             backupTrigger.tryEmit(Unit)
             "Photo updated"
-        }.getOrElse { "Couldn't use that picture: ${it.message}" }
+        }.getOrElse { "Couldn't save the picture: ${it.message}" }
     }
 
     fun removePhoto() = viewModelScope.launch {
