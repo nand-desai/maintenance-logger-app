@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AttachmentCount, AttachmentList } from '../attachments'
 import { deleteBrakeEntry } from '../ops'
 import { km, mm, money } from '../logic/format'
 import { BRAKE_NEW_MM, BRAKE_REPLACE_MM, brakeKmLeft, latestBrake } from '../logic/tires'
@@ -40,7 +41,7 @@ function BrakeCard({ e, onEdit }: { e: BrakeEntry; onEdit: () => void }) {
     <div className="card" role="button" tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => setOpen(!open)}>
       <div className="row">
         <span style={{ color: 'var(--primary)' }}><Icon name={e.type === 'Replaced' ? 'build' : 'ruler'} /></span>
-        <div className="grow"><div className="title">{e.type === 'Replaced' ? 'New pads fitted' : 'Pads measured'}</div><div className="soft small">{e.date} · {km(e.odometer)}</div></div>
+        <div className="grow"><div className="title">{e.type === 'Replaced' ? 'New pads fitted' : 'Pads measured'} <AttachmentCount ownerId={e.entryId} /></div><div className="soft small">{e.date} · {km(e.odometer)}</div></div>
         <span className="soft small">{summary}{summary ? ' mm' : ''}</span>
       </div>
       {open && (
@@ -49,6 +50,7 @@ function BrakeCard({ e, onEdit }: { e: BrakeEntry; onEdit: () => void }) {
           {e.rearMm != null && <Detail label="Rear pads" value={mm(e.rearMm)} />}
           {e.cost > 0 && <Detail label="Cost" value={money(e.cost)} />}
           {e.note && <Detail label="Note" value={e.note} />}
+          <AttachmentList ownerId={e.entryId} />
           <div className="actions">
             <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
             <button className="btn text danger" onClick={() => deleteBrakeEntry(e)}><Icon name="trash" size={18} /> Delete</button>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AttachmentsField, useAttachmentDraft } from './attachments'
 import { db, newId, today } from './db'
 import { saveSettings } from './store'
 import { Field, Sheet } from './ui'
@@ -120,6 +121,8 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
   const [cost, setCost] = useState(initial?.cost?.toString() ?? '')
   const [litres, setLitres] = useState(initial?.fuelLiters ? initial.fuelLiters.toString() : '')
   const [note, setNote] = useState(initial?.note ?? '')
+  const [logId] = useState(initial?.logId ?? newId('LOG'))
+  const draft = useAttachmentDraft(logId)
   const isFuel = category === Categories.FUEL
   const isOther = category === Categories.OTHER
   const rate = isFuel && Number.isInteger(num(odo)) ? entryLitresPer100(previousFuelOdometer, num(odo), num(litres) || 0) : null
@@ -127,11 +130,12 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
 
   const save = async () => {
     await db.expenses.put({
-      logId: initial?.logId ?? newId('LOG'), vehicleId: vehicle.vehicleId, date, odometer: num(odo), category,
+      logId, vehicleId: vehicle.vehicleId, date, odometer: num(odo), category,
       cost: num(cost), fuelLiters: isFuel ? num(litres) || 0 : 0,
       // keep the description of a service/tire/brake expense; "Other" uses what was typed
       note: isOther ? note.trim() : initial && initial.category !== Categories.OTHER ? initial.note : '',
     })
+    await draft.commit(vehicle.vehicleId, 'expense')
     if (!initial && num(odo) > vehicle.currentOdometer) await db.vehicles.update(vehicle.vehicleId, { currentOdometer: num(odo) })
     onClose()
   }
@@ -147,6 +151,7 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
       <Field label="Cost (CAD)" value={cost} onChange={setCost} inputMode="decimal" />
       {isFuel && <Field label="Fuel (litres)" value={litres} onChange={setLitres} inputMode="decimal" />}
       {rate != null && <div className="small soft">≈ {rate.toFixed(1)} L/100 km since the last fill-up</div>}
+      <AttachmentsField draft={draft} />
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
         <button className="btn" disabled={!valid} onClick={save}>Save</button>

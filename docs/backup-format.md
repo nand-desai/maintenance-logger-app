@@ -1,5 +1,19 @@
 # Carlo backup format (version 2)
 
+A backup is either a plain **`.json`** file (data only) or, preferably, a **`.zip`** that also carries
+vehicle photos and receipt attachments:
+
+```
+carlo-backup-2026-11-05.zip
+├── backup.json                         <- exactly the JSON described below
+├── photos/<vehicle_id>.img             <- the vehicle picture (JPEG or PNG bytes)
+└── attachments/<attachment_id>         <- one file per attachment (the original bytes)
+```
+
+Import auto-detects the type (a zip starts with `PK`). Importing a `.json` brings in the data but not
+any attachment files. The Android automatic-backup folder holds the same things as loose files:
+`carlo-backup.json`, `carlo-photo-<vehicle_id>.jpg` and an `attachments/` sub-folder.
+
 Both the Android app (`android/`) and the web app (`web/`) read and write this JSON, so a backup
 made in one can be imported into the other. Rows are matched by their ID: importing **merges**, so a
 row with an existing ID is overwritten and everything else is kept.
@@ -53,6 +67,12 @@ Dates are ISO `YYYY-MM-DD`. Missing optional fields are treated as `null` / empt
       "type": "Measured",       // Measured | Replaced
       "front_mm": 7.0, "rear_mm": 6.5, "cost": 0, "note": "" }
   ],
+  "attachments": [               // metadata only; the bytes live in attachments/<attachment_id> in the zip
+    { "attachment_id": "ATT_ab12cd34", "vehicle_id": "CAR_...",
+      "owner_type": "maintenance",   // maintenance | tire | brake | expense
+      "owner_id": "MNT_...",         // the record_id / event_id / entry_id / log_id it belongs to
+      "file_name": "receipt.jpg", "mime": "image/jpeg", "size": 183204, "created_at": 1793000000000 }
+  ],
   "car_notes": [
     { "note_id": "NOTE_...", "vehicle_id": "CAR_...", "date": "2026-11-01", "odometer": 94000,
       "tag": "Noise",           // Noise | Vibration | Leak | Smell | Warning light | Handling | General
@@ -69,8 +89,8 @@ Dates are ISO `YYYY-MM-DD`. Missing optional fields are treated as `null` / empt
 ```
 
 ## Not in the file
-Vehicle **photos** are not part of the JSON (they would make it very large). The Android app saves
-them next to the backup in the automatic-backup folder; the web app keeps them in the browser.
+The JSON only lists attachments; their **bytes** (and vehicle photos) are in the `.zip`, or loose files in the
+Android automatic-backup folder. An `attachments` row whose file is missing is skipped on import.
 
 ## Rules both apps must apply the same way
 - **Due soon** when a service is within `due_soon_km` (default 1500) of `last_done_odometer + interval_km`; **overdue** once past it.
@@ -79,3 +99,4 @@ them next to the backup in the automatic-backup folder; the web app keeps them i
 - **Insurance** payments added automatically use the id `<recurring_id>_<YYYY-MM-DD>` so running the catch-up twice never double-adds a month.
 - A **cost** entered on a completed service, tire entry or brake entry is mirrored as a *Service* expense with id `EXP_<record_id, event_id or entry_id>`. Its `note` says what it was for (for example `Brake fluid · Dealer flush`, `Tire swap · Winter set`, `Tires · Puncture`, `Brakes · new pads`), and the Expenses list shows it as `Service · <note>`. Editing the entry updates that expense; deleting the entry deletes it.
 - Marking a service **done** adds a `maintenance_records` entry and moves the service's `last_done_odometer` to the newest record's odometer. Deleting a service deletes its records and their mirrored expenses.
+- **Attachments** are receipts and similar: photos are shrunk to at most 2000 px (JPEG); PDFs and other files are kept as they are, up to 25 MB each. Deleting a record, entry or expense deletes its attachments.

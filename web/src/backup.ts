@@ -1,3 +1,4 @@
+import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
 import { db } from './db'
 import { DEFAULT_SETTINGS, type Settings, type ThemeMode } from './types'
 import { getSettings, saveSettings } from './store'
@@ -23,6 +24,7 @@ export async function exportBackup(): Promise<string> {
     tire_sets: (await db.tireSets.toArray()).map((x) => ({ set_id: x.setId, vehicle_id: x.vehicleId, name: x.name, season: x.season, brand: x.brand, size: x.size, mounted: x.mounted, mounted_at_odometer: x.mountedAtOdometer, km_before: x.kmBefore })),
     tire_events: (await db.tireEvents.toArray()).map((x) => ({ event_id: x.eventId, vehicle_id: x.vehicleId, set_id: x.setId, type: x.type, date: x.date, odometer: x.odometer, wheel: x.wheel, note: x.note, cost: x.cost, tread_fl: x.treadFl, tread_fr: x.treadFr, tread_rl: x.treadRl, tread_rr: x.treadRr })),
     brake_entries: (await db.brakeEntries.toArray()).map((x) => ({ entry_id: x.entryId, vehicle_id: x.vehicleId, date: x.date, odometer: x.odometer, type: x.type, front_mm: x.frontMm, rear_mm: x.rearMm, cost: x.cost, note: x.note })),
+    attachments: (await db.attachments.toArray()).map((x) => ({ attachment_id: x.attachmentId, vehicle_id: x.vehicleId, owner_type: x.ownerType, owner_id: x.ownerId, file_name: x.fileName, mime: x.mime, size: x.size, created_at: x.createdAt })),
     car_notes: (await db.notes.toArray()).map((x) => ({ note_id: x.noteId, vehicle_id: x.vehicleId, date: x.date, odometer: x.odometer, tag: x.tag, text: x.text, done: x.done })),
     recurring_expenses: (await db.recurring.toArray()).map((x) => ({ recurring_id: x.recurringId, vehicle_id: x.vehicleId, category: x.category, amount: x.amount, day_of_month: x.dayOfMonth, next_due: x.nextDue, active: x.active })),
     settings: { due_soon_km: s.dueSoonKm, reminder_hour: s.reminderHour, theme: s.themeMode, saved_colors: s.savedColors },
@@ -30,10 +32,11 @@ export async function exportBackup(): Promise<string> {
   return JSON.stringify(out, null, 2)
 }
 
-export interface ImportCounts { vehicles: number; services: number; expenses: number; tireSets: number; tireEvents: number; brakes: number; notes: number; reminders: number }
+export interface ImportCounts { attachments?: number; vehicles: number; services: number; expenses: number; tireSets: number; tireEvents: number; brakes: number; notes: number; reminders: number }
 
 /** Merges a backup (from this app or the Android app) into the local database. */
-export async function importBackup(text: string): Promise<ImportCounts> {
+/** [files] are the other entries of a zip backup (attachments/…, photos/…), if any. */
+export async function importBackup(text: string, files?: Record<string, Uint8Array>): Promise<ImportCounts> {
   const root = JSON.parse(text) as Row
   if (!ACCEPTED_APPS.includes(root.app)) throw new Error("This isn't a Carlo backup file")
   if ((root.version ?? 1) < 2) throw new Error("This backup uses miles/gallons and can't be imported")
@@ -49,7 +52,16 @@ export async function importBackup(text: string): Promise<ImportCounts> {
   const notes = arr(root.car_notes).map((r) => ({ noteId: r.note_id, vehicleId: r.vehicle_id, date: r.date, odometer: r.odometer, tag: r.tag ?? 'General', text: r.text, done: !!r.done }))
   const recurring = arr(root.recurring_expenses).map((r) => ({ recurringId: r.recurring_id, vehicleId: r.vehicle_id, category: r.category, amount: r.amount, dayOfMonth: r.day_of_month, nextDue: r.next_due, active: r.active !== false }))
 
-  await db.transaction('rw', [db.vehicles, db.schedules, db.maintenanceRecords, db.expenses, db.reminders, db.tireSets, db.tireEvents, db.brakeEntries, db.notes, db.recurring], async () => {
+  const attachmentRows = arr(root.attachments).flatMap((r) => {
+    const bytes = files?.[`attachments/${r.attachment_id}`]
+    if (!bytes) return [] // no file, so nothing to attach
+    const mime = r.mime ?? 'application/octet-stream'
+    return [{ attachmentId: r.attachment_id, vehicleId: r.vehicle_id, ownerType: r.owner_type, ownerId: r.owner_id, fileName: r.file_name ?? 'attachment', mime, size: bytes.length, createdAt: r.created_at ?? Date.now(), blob: new Blob([bytes.slice().buffer], { type: mime }) }]
+  })
+  const photoRows = Object.entries(files ?? {}).filter(([k]) => k.startsWith('photos/')).map(([k, bytes]) => ({ vehicleId: k.slice(7).replace(/\.[^.]+$/, ''), blob: new Blob([bytes.slice().buffer]) }))
+
+  await db.transaction('rw', [db.attachments, db.photos, db.vehicles, db.schedules, db.maintenanceRecords, db.expenses, db.reminders, db.tireSets, db.tireEvents, db.brakeEntries, db.notes, db.recurring], async () => {
+    await db.attachments.bulkPut(attachmentRows); await db.photos.bulkPut(photoRows)
     await db.vehicles.bulkPut(vehicles); await db.schedules.bulkPut(schedules); await db.maintenanceRecords.bulkPut(records); await db.expenses.bulkPut(expenses)
     await db.reminders.bulkPut(reminders); await db.tireSets.bulkPut(tireSets); await db.tireEvents.bulkPut(tireEvents)
     await db.brakeEntries.bulkPut(brakes); await db.notes.bulkPut(notes); await db.recurring.bulkPut(recurring)
@@ -67,5 +79,25 @@ export async function importBackup(text: string): Promise<ImportCounts> {
     }
     await saveSettings({ ...DEFAULT_SETTINGS, ...(await getSettings()), ...patch })
   }
-  return { vehicles: vehicles.length, services: schedules.length, expenses: expenses.length, tireSets: tireSets.length, tireEvents: tireEvents.length, brakes: brakes.length, notes: notes.length, reminders: reminders.length }
+  return { attachments: attachmentRows.length, vehicles: vehicles.length, services: schedules.length, expenses: expenses.length, tireSets: tireSets.length, tireEvents: tireEvents.length, brakes: brakes.length, notes: notes.length, reminders: reminders.length }
+}
+
+/** A zip with backup.json, the vehicle photos and every attachment: the whole garage in one file. */
+export async function exportBackupZip(): Promise<Uint8Array> {
+  const files: Zippable = { 'backup.json': strToU8(await exportBackup()) }
+  // photos and receipts are already compressed, so they are stored as they are
+  for (const a of await db.attachments.toArray()) files[`attachments/${a.attachmentId}`] = [new Uint8Array(await a.blob.arrayBuffer()), { level: 0 }]
+  for (const p of await db.photos.toArray()) files[`photos/${p.vehicleId}.img`] = [new Uint8Array(await p.blob.arrayBuffer()), { level: 0 }]
+  return zipSync(files)
+}
+
+/** Imports a .zip backup (data, photos, attachments) or a plain .json backup (data only). */
+export async function importBackupFile(file: File): Promise<ImportCounts> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) { // "PK": a zip
+    const entries = unzipSync(bytes)
+    if (!entries['backup.json']) throw new Error("This zip doesn't contain a backup.json")
+    return importBackup(strFromU8(entries['backup.json']), entries)
+  }
+  return importBackup(strFromU8(bytes))
 }

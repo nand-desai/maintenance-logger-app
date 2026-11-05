@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AttachmentCount, AttachmentList } from '../attachments'
 import { deleteTireEvent } from '../ops'
 import { km, mm, money } from '../logic/format'
 import { CARE_KM, WHEELS, TREAD_REPLACE_MM, kmDriven, lastRotation, latestOfType, latestTread, swapDue, treadWear, treadFor, worstTread, type Wheel } from '../logic/tires'
@@ -28,7 +29,7 @@ function EventCard({ e, setName, onEdit }: { e: TireEvent; setName?: string; onE
     <div className="card" role="button" tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => setOpen(!open)}>
       <div className="row">
         <span style={{ color: 'var(--primary)' }}><Icon name={EVENT_ICON[e.type] ?? 'tire'} /></span>
-        <div className="grow"><div className="title">{title}</div><div className="soft small">{e.date} · {km(e.odometer)}</div></div>
+        <div className="grow"><div className="title">{title} <AttachmentCount ownerId={e.eventId} /></div><div className="soft small">{e.date} · {km(e.odometer)}</div></div>
         <span className="soft" style={{ transform: open ? 'rotate(90deg)' : 'none' }}><Icon name="chevron" /></span>
       </div>
       {open && (
@@ -37,6 +38,7 @@ function EventCard({ e, setName, onEdit }: { e: TireEvent; setName?: string; onE
           {e.cost > 0 && <Detail label="Cost" value={money(e.cost)} />}
           {e.type === 'Tread' && (Object.keys(WHEELS) as Wheel[]).map((w) => treadFor(e, w) != null && <Detail key={w} label={WHEELS[w]} value={mm(treadFor(e, w)!)} />)}
           {e.note && <Detail label="Note" value={e.note} />}
+          <AttachmentList ownerId={e.eventId} />
           <div className="actions">
             <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
             <button className="btn text danger" onClick={() => deleteTireEvent(e)}><Icon name="trash" size={18} /> Delete</button>

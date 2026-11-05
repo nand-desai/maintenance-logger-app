@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { db } from '../db'
+import { AttachmentCount, AttachmentList } from '../attachments'
+import { deleteExpense } from '../ops'
 import { CATEGORY_LIST, CHART_COLORS, expenseTitle, summarize } from '../logic/expenses'
 import { km, money } from '../logic/format'
 import { Detail, Icon } from '../ui'
@@ -27,11 +28,13 @@ function Donut({ values, size }: { values: number[]; size: number }) {
 
 function ExpenseCard({ l, onEdit }: { l: ExpenseLog; onEdit: () => void }) {
   const [open, setOpen] = useState(false)
+  // a cost mirrored from a service/tire/brake record shows that record's receipts
+  const owner = l.logId.startsWith('EXP_') ? l.logId.slice(4) : l.logId
   return (
     <div className="card" role="button" tabIndex={0} style={{ cursor: 'pointer' }} onClick={() => setOpen(!open)}>
       <div className="row">
         <div className="grow">
-          <div className="title">{expenseTitle(l)} · {money(l.cost)}</div>
+          <div className="title">{expenseTitle(l)} · {money(l.cost)} <AttachmentCount ownerId={owner} /></div>
           <div className="soft small">{l.date}</div>
         </div>
         <span className="soft" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}><Icon name="chevron" /></span>
@@ -43,9 +46,10 @@ function ExpenseCard({ l, onEdit }: { l: ExpenseLog; onEdit: () => void }) {
           <Detail label="Odometer" value={km(l.odometer)} />
           {l.fuelLiters > 0 && <Detail label="Fuel" value={`${l.fuelLiters.toFixed(1)} L`} />}
           {l.fuelLiters > 0 && l.cost > 0 && <Detail label="Price per litre" value={money(l.cost / l.fuelLiters, 3)} />}
+          <AttachmentList ownerId={owner} />
           <div className="actions">
             <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
-            <button className="btn text danger" onClick={() => db.expenses.delete(l.logId)}><Icon name="trash" size={18} /> Delete</button>
+            <button className="btn text danger" onClick={() => deleteExpense(l.logId)}><Icon name="trash" size={18} /> Delete</button>
           </div>
         </div>
       )}

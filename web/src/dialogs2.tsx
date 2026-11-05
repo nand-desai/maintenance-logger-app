@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AttachmentsField, useAttachmentDraft } from './attachments'
 import { db, newId, today } from './db'
 import { deleteServiceRecord, mountSet, saveBrakeEntry, saveServiceRecord, saveTireEvent } from './ops'
 import { WHEELS, type Wheel } from './logic/tires'
@@ -18,6 +19,8 @@ export function ServiceDoneDialog({ vehicle, schedule, initial, onClose }: {
   const [odo, setOdo] = useState((initial?.odometer ?? vehicle.currentOdometer).toString())
   const [cost, setCost] = useState(initial?.cost ? initial.cost.toString() : '')
   const [note, setNote] = useState(initial?.note ?? '')
+  const [recordId] = useState(initial?.recordId ?? newId('MNT'))
+  const draft = useAttachmentDraft(recordId)
   const valid = date && Number.isInteger(num(odo)) && (cost.trim() === '' || !Number.isNaN(num(cost)))
   return (
     <Sheet title={initial ? `Edit · ${schedule.serviceName}` : `Done · ${schedule.serviceName}`} onClose={onClose}>
@@ -27,12 +30,14 @@ export function ServiceDoneDialog({ vehicle, schedule, initial, onClose }: {
       <label className="f">Notes (optional)
         <textarea rows={3} value={note} placeholder="e.g. synthetic 5W-30, garage name, what the mechanic said" onChange={(e) => setNote(e.target.value)} />
       </label>
+      <AttachmentsField draft={draft} />
       <div className="small soft">A cost is added to your Expenses automatically.</div>
       <div className="actions">
         {initial && <button className="btn text danger" onClick={async () => { await deleteServiceRecord(initial); onClose() }}>Delete</button>}
         <button className="btn text" onClick={onClose}>Cancel</button>
         <button className="btn" disabled={!valid} onClick={async () => {
-          await saveServiceRecord(vehicle, schedule, { recordId: initial?.recordId, date, odometer: num(odo), cost: num(cost) || 0, note: note.trim() })
+          await saveServiceRecord(vehicle, schedule, { recordId, date, odometer: num(odo), cost: num(cost) || 0, note: note.trim() })
+          await draft.commit(vehicle.vehicleId, 'maintenance')
           onClose()
         }}>Save</button>
       </div>
@@ -117,6 +122,8 @@ export function TireEventDialog({ vehicle, initial, preset, mountedSetId, onClos
   const [odo, setOdo] = useState((initial?.odometer ?? vehicle.currentOdometer).toString())
   const [note, setNote] = useState(initial?.note ?? '')
   const [cost, setCost] = useState(initial?.cost ? initial.cost.toString() : '')
+  const [eventId] = useState(initial?.eventId ?? newId('TIR'))
+  const draft = useAttachmentDraft(eventId)
   const [tread, setTread] = useState<Record<Wheel, string>>({
     FL: initial?.treadFl?.toString() ?? '', FR: initial?.treadFr?.toString() ?? '', RL: initial?.treadRl?.toString() ?? '', RR: initial?.treadRr?.toString() ?? '',
   })
@@ -152,6 +159,7 @@ export function TireEventDialog({ vehicle, initial, preset, mountedSetId, onClos
         </>
       ) : <Field label="Cost (CAD, optional)" value={cost} onChange={setCost} inputMode="decimal" />}
       <Field label="Note (optional)" value={note} onChange={setNote} />
+      {!isTread && <AttachmentsField draft={draft} />}
       {!isTread && <div className="small soft">A cost is added to your Expenses automatically.</div>}
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
@@ -160,7 +168,8 @@ export function TireEventDialog({ vehicle, initial, preset, mountedSetId, onClos
           await saveTireEvent(vehicle, initial, {
             type: type!, date, odometer: num(odo), wheel: isPuncture ? wheel : null, note: note.trim(), cost: isTread ? 0 : num(cost) || 0,
             treadFl: t('FL'), treadFr: t('FR'), treadRl: t('RL'), treadRr: t('RR'),
-          }, mountedSetId)
+          }, mountedSetId, eventId)
+          await draft.commit(vehicle.vehicleId, 'tire')
           onClose()
         }}>Save</button>
       </div>
@@ -177,6 +186,8 @@ export function BrakeDialog({ vehicle, initial, presetType, onClose }: { vehicle
   const [rear, setRear] = useState(initial?.rearMm?.toString() ?? '')
   const [cost, setCost] = useState(initial?.cost ? initial.cost.toString() : '')
   const [note, setNote] = useState(initial?.note ?? '')
+  const [entryId] = useState(initial?.entryId ?? newId('BRK'))
+  const draft = useAttachmentDraft(entryId)
   const f = num(front), r = num(rear)
   const mmOk = (front.trim() === '' || (f >= 0 && f <= 30)) && (rear.trim() === '' || (r >= 0 && r <= 30)) && (!Number.isNaN(f) || !Number.isNaN(r))
   return (
@@ -193,6 +204,7 @@ export function BrakeDialog({ vehicle, initial, presetType, onClose }: { vehicle
       </div>
       <Field label="Cost (CAD, optional)" value={cost} onChange={setCost} inputMode="decimal" />
       <Field label="Note (optional)" value={note} onChange={setNote} />
+      <AttachmentsField draft={draft} />
       <div className="small soft">A cost is added to your Expenses automatically.</div>
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
@@ -200,7 +212,8 @@ export function BrakeDialog({ vehicle, initial, presetType, onClose }: { vehicle
           await saveBrakeEntry(vehicle, initial, {
             type: type!, date, odometer: num(odo), frontMm: front.trim() === '' ? null : f, rearMm: rear.trim() === '' ? null : r,
             cost: num(cost) || 0, note: note.trim(),
-          })
+          }, entryId)
+          await draft.commit(vehicle.vehicleId, 'brake')
           onClose()
         }}>Save</button>
       </div>

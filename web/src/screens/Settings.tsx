@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { exportBackup, importBackup } from '../backup'
+import { exportBackup, exportBackupZip, importBackupFile } from '../backup'
 import { db } from '../db'
 import { km } from '../logic/format'
 import { saveSettings } from '../store'
 import { Icon } from '../ui'
 import type { Settings as S, ThemeMode, Vehicle } from '../types'
 
-async function shareOrDownload(json: string) {
-  const name = `carlo-backup-${new Date().toISOString().slice(0, 10)}.json`
-  const file = new File([json], name, { type: 'application/json' })
+async function shareOrDownload(data: string | Uint8Array, ext: 'zip' | 'json') {
+  const name = `carlo-backup-${new Date().toLocaleDateString('en-CA')}.${ext}`
+  const file = new File([data as BlobPart], name, { type: ext === 'zip' ? 'application/zip' : 'application/json' })
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean }
   if (nav.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: name }); return 'Backup shared' } catch (e) { if ((e as Error).name === 'AbortError') return null }
@@ -30,15 +30,15 @@ export function Settings({ settings, vehicle, onToast, onEditVehicle, onOdometer
   const doImport = async (f?: File) => {
     if (!f) return
     try {
-      const c = await importBackup(await f.text())
-      onToast(`Imported ${c.vehicles} vehicles, ${c.services} services, ${c.expenses} expenses, ${c.tireSets} tire sets`)
+      const c = await importBackupFile(f)
+      onToast(`Imported ${c.vehicles} vehicles, ${c.services} services, ${c.expenses} expenses, ${c.tireSets} tire sets${c.attachments ? `, ${c.attachments} attachments` : ''}`)
     } catch (e) { onToast(`Import failed: ${(e as Error).message}`) }
   }
   const deleteVehicle = async () => {
     if (!confirm(`Delete ${vehicle.make} ${vehicle.model} and everything logged for it? This can't be undone.`)) return
     const id = vehicle.vehicleId
-    await db.transaction('rw', [db.vehicles, db.schedules, db.maintenanceRecords, db.expenses, db.tireSets, db.tireEvents, db.brakeEntries, db.notes, db.recurring, db.reminders, db.photos], async () => {
-      await db.schedules.where('vehicleId').equals(id).delete(); await db.maintenanceRecords.where('vehicleId').equals(id).delete(); await db.expenses.where('vehicleId').equals(id).delete()
+    await db.transaction('rw', [db.vehicles, db.schedules, db.maintenanceRecords, db.attachments, db.expenses, db.tireSets, db.tireEvents, db.brakeEntries, db.notes, db.recurring, db.reminders, db.photos], async () => {
+      await db.attachments.where('vehicleId').equals(id).delete(); await db.schedules.where('vehicleId').equals(id).delete(); await db.maintenanceRecords.where('vehicleId').equals(id).delete(); await db.expenses.where('vehicleId').equals(id).delete()
       await db.tireSets.where('vehicleId').equals(id).delete(); await db.tireEvents.where('vehicleId').equals(id).delete()
       await db.brakeEntries.where('vehicleId').equals(id).delete(); await db.notes.where('vehicleId').equals(id).delete()
       await db.recurring.where('vehicleId').equals(id).delete(); await db.reminders.where('vehicleId').equals(id).delete()
@@ -71,13 +71,14 @@ export function Settings({ settings, vehicle, onToast, onEditVehicle, onOdometer
           {persisted === true && ' Storage is protected from automatic clean-up.'}
         </div>
         <div className="row">
-          <button className="btn grow" onClick={async () => { const m = await shareOrDownload(await exportBackup()); if (m) onToast(m) }}><Icon name="swap" size={18} /> Back up</button>
+          <button className="btn grow" onClick={async () => { const m = await shareOrDownload(await exportBackupZip(), 'zip'); if (m) onToast(m) }}><Icon name="swap" size={18} /> Back up (zip)</button>
           <button className="btn outline grow" onClick={() => fileInput.current?.click()}>Import</button>
         </div>
+        <button className="btn text" onClick={async () => { const m = await shareOrDownload(await exportBackup(), 'json'); if (m) onToast(m) }}>Data only (.json, no photos or receipts)</button>
         {persisted === false && (
           <button className="btn text" onClick={async () => setPersisted(await (navigator.storage?.persist?.() ?? Promise.resolve(false)))}>Protect my data from clean-up</button>
         )}
-        <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={(e) => { doImport(e.target.files?.[0]); e.target.value = '' }} />
+        <input ref={fileInput} type="file" accept="application/json,.json,application/zip,.zip" hidden onChange={(e) => { doImport(e.target.files?.[0]); e.target.value = '' }} />
       </div>
 
       <h2>{vehicle.make} {vehicle.model}</h2>

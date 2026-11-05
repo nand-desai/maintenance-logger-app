@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AttachmentCount, AttachmentList } from '../attachments'
 import { db } from '../db'
 import { deleteServiceRecord } from '../ops'
 import { km, money } from '../logic/format'
@@ -36,13 +37,16 @@ function ServiceCard({ s, vehicle, dueSoonKm, records, onEdit, onDone, onEditRec
             <div style={{ marginTop: 10 }}>
               <div className="small soft" style={{ marginBottom: 4 }}>History</div>
               {records.map((r) => (
-                <button key={r.recordId} className="row" onClick={() => onEditRecord(r)} style={{ width: '100%', textAlign: 'left', padding: '6px 0', borderTop: '1px solid var(--outline)' }}>
-                  <span className="grow">
-                    <div className="small"><b>{r.date}</b> · {km(r.odometer)}{r.cost > 0 ? ` · ${money(r.cost)}` : ''}</div>
-                    {r.note && <div className="soft small">{r.note}</div>}
-                  </span>
-                  <span className="soft"><Icon name="edit" size={16} /></span>
-                </button>
+                <div key={r.recordId} style={{ borderTop: '1px solid var(--outline)', padding: '6px 0' }}>
+                  <button className="row" onClick={() => onEditRecord(r)} style={{ width: '100%', textAlign: 'left' }}>
+                    <span className="grow">
+                      <div className="small"><b>{r.date}</b> · {km(r.odometer)}{r.cost > 0 ? ` · ${money(r.cost)}` : ''} <AttachmentCount ownerId={r.recordId} /></div>
+                      {r.note && <div className="soft small">{r.note}</div>}
+                    </span>
+                    <span className="soft"><Icon name="edit" size={16} /></span>
+                  </button>
+                  <AttachmentList ownerId={r.recordId} />
+                </div>
               ))}
             </div>
           )}

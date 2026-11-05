@@ -5,7 +5,7 @@ import { runRecurring } from './logic/recurring'
 import { Expenses } from './screens/Expenses'
 import { Notes } from './screens/Notes'
 import { Wash } from './screens/Wash'
-import { importBackup } from './backup'
+import { importBackupFile } from './backup'
 import { selectVehicle, useGarage, useSettings } from './store'
 import { Categories, type BrakeEntry, type CarNote, type ExpenseLog, type MaintenanceRecord, type MaintenanceSchedule, type Reminder, type TireEvent, type TireSet, type Vehicle } from './types'
 import { Icon } from './ui'
@@ -70,7 +70,7 @@ export default function App() {
 
   const importFile = async (f?: File) => {
     if (!f) return
-    try { const c = await importBackup(await f.text()); say(`Imported ${c.vehicles} vehicles and ${c.expenses} expenses`) }
+    try { const c = await importBackupFile(f); say(`Imported ${c.vehicles} vehicles and ${c.expenses} expenses`) }
     catch (e) { say(`Import failed: ${(e as Error).message}`) }
   }
 
@@ -82,7 +82,7 @@ export default function App() {
       <div className="app">
         <button className="icon-btn help-fab" aria-label="Help: save Carlo to your phone" onClick={() => setHelp(true)}><Icon name="help" /></button>
         <Landing onAdd={() => setDialog({ kind: 'vehicle' })} onImport={() => document.getElementById('restore-file')?.click()} />
-        <input id="restore-file" type="file" accept="application/json,.json" hidden onChange={(e) => { importFile(e.target.files?.[0]); e.target.value = '' }} />
+        <input id="restore-file" type="file" accept="application/json,.json,application/zip,.zip" hidden onChange={(e) => { importFile(e.target.files?.[0]); e.target.value = '' }} />
         {dialog?.kind === 'vehicle' && (
           <VehicleDialog settings={settings} onClose={() => setDialog(null)} onSaved={(v) => { selectVehicle(v.vehicleId); setDialog(null) }} />
         )}

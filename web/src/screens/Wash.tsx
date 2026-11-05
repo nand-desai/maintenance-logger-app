@@ -1,4 +1,4 @@
-import { db } from '../db'
+import { deleteExpense } from '../ops'
 import { money, washSummary } from '../logic/format'
 import { Categories, type ExpenseLog } from '../types'
 import { Icon } from '../ui'
@@ -22,7 +22,7 @@ export function Wash({ expenses, onLog, onEdit }: { expenses: ExpenseLog[]; onLo
         <div key={w.logId} className="card row">
           <div className="grow"><div className="title">{w.date}</div><div className="soft small">{money(w.cost)}</div></div>
           <button className="icon-btn" aria-label="Edit wash" onClick={() => onEdit(w)}><Icon name="edit" /></button>
-          <button className="icon-btn" aria-label="Delete wash" onClick={() => db.expenses.delete(w.logId)}><Icon name="trash" /></button>
+          <button className="icon-btn" aria-label="Delete wash" onClick={() => deleteExpense(w.logId)}><Icon name="trash" /></button>
         </div>
       ))}
     </>

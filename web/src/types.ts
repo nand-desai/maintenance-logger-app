@@ -4,6 +4,12 @@ export interface Vehicle { vehicleId: string; make: string; model: string; year:
 export interface MaintenanceSchedule { scheduleId: string; vehicleId: string; serviceName: string; intervalKm: number; lastDoneOdometer: number }
 /** One completed service: when, at what odometer, what it cost and any notes. */
 export interface MaintenanceRecord { recordId: string; scheduleId: string; vehicleId: string; serviceName: string; date: string; odometer: number; cost: number; note: string }
+export type AttachmentOwner = 'maintenance' | 'tire' | 'brake' | 'expense'
+/** A receipt or other file attached to a record. The file itself is stored in `blob`. */
+export interface Attachment {
+  attachmentId: string; vehicleId: string; ownerType: AttachmentOwner; ownerId: string
+  fileName: string; mime: string; size: number; createdAt: number; blob: Blob
+}
 export interface ExpenseLog { logId: string; vehicleId: string; date: string; odometer: number; category: string; cost: number; fuelLiters: number; note: string }
 export interface Reminder { reminderId: string; vehicleId: string | null; title: string; note: string; triggerAt: number }
 export interface TireSet { setId: string; vehicleId: string; name: string; season: string; brand: string; size: string; mounted: boolean; mountedAtOdometer: number; kmBefore: number }

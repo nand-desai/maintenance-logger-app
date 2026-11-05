@@ -1,12 +1,13 @@
 import Dexie, { type Table } from 'dexie'
 import type {
-  BrakeEntry, CarNote, ExpenseLog, MaintenanceRecord, MaintenanceSchedule, Reminder, RecurringExpense, TireEvent, TireSet, Vehicle,
+  Attachment, BrakeEntry, CarNote, ExpenseLog, MaintenanceRecord, MaintenanceSchedule, Reminder, RecurringExpense, TireEvent, TireSet, Vehicle,
 } from './types'
 
 class CarloDB extends Dexie {
   vehicles!: Table<Vehicle, string>
   schedules!: Table<MaintenanceSchedule, string>
   maintenanceRecords!: Table<MaintenanceRecord, string>
+  attachments!: Table<Attachment, string>
   expenses!: Table<ExpenseLog, string>
   reminders!: Table<Reminder, string>
   tireSets!: Table<TireSet, string>
@@ -34,6 +35,8 @@ class CarloDB extends Dexie {
     })
     // v2: a history of completed services (date, cost, notes)
     this.version(2).stores({ maintenanceRecords: 'recordId, vehicleId, scheduleId' })
+    // v3: receipts and other files attached to records
+    this.version(3).stores({ attachments: 'attachmentId, vehicleId, ownerId' })
   }
 }
 

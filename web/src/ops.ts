@@ -1,3 +1,4 @@
+import { deleteAttachmentsFor } from './attachments'
 import { db, newId, today } from './db'
 import { TireEventType, type BrakeEntry, type MaintenanceRecord, type MaintenanceSchedule, type TireEvent, type TireSet, type Vehicle } from './types'
 
@@ -39,6 +40,7 @@ export async function deleteServiceRecord(r: MaintenanceRecord) {
     await db.expenses.delete(`EXP_${r.recordId}`)
     await refreshLastDone(r.scheduleId)
   })
+  await deleteAttachmentsFor(r.recordId)
 }
 
 // ---- tires ------------------------------------------------------------------------------------
@@ -63,8 +65,8 @@ export async function mountSet(v: Vehicle, set: TireSet, f: { odometer: number; 
   })
 }
 
-export async function saveTireEvent(v: Vehicle, existing: TireEvent | undefined, f: Omit<TireEvent, 'eventId' | 'vehicleId' | 'setId'>, mountedSetId: string | null) {
-  const e: TireEvent = { ...f, eventId: existing?.eventId ?? newId('TIR'), vehicleId: v.vehicleId, setId: existing ? existing.setId : mountedSetId }
+export async function saveTireEvent(v: Vehicle, existing: TireEvent | undefined, f: Omit<TireEvent, 'eventId' | 'vehicleId' | 'setId'>, mountedSetId: string | null, id?: string) {
+  const e: TireEvent = { ...f, eventId: existing?.eventId ?? id ?? newId('TIR'), vehicleId: v.vehicleId, setId: existing ? existing.setId : mountedSetId }
   await db.transaction('rw', [db.tireEvents, db.expenses, db.vehicles], async () => {
     await db.tireEvents.put(e)
     await mirrorCost(e.eventId, v.vehicleId, e.date, e.odometer, e.cost, `Tires · ${e.type}${e.note ? ` · ${e.note}` : ''}`)
@@ -77,12 +79,13 @@ export async function deleteTireEvent(e: TireEvent) {
     await db.tireEvents.delete(e.eventId)
     await db.expenses.delete(`EXP_${e.eventId}`)
   })
+  await deleteAttachmentsFor(e.eventId)
 }
 
 // ---- brakes -----------------------------------------------------------------------------------
 
-export async function saveBrakeEntry(v: Vehicle, existing: BrakeEntry | undefined, f: Omit<BrakeEntry, 'entryId' | 'vehicleId'>) {
-  const e: BrakeEntry = { ...f, entryId: existing?.entryId ?? newId('BRK'), vehicleId: v.vehicleId }
+export async function saveBrakeEntry(v: Vehicle, existing: BrakeEntry | undefined, f: Omit<BrakeEntry, 'entryId' | 'vehicleId'>, id?: string) {
+  const e: BrakeEntry = { ...f, entryId: existing?.entryId ?? id ?? newId('BRK'), vehicleId: v.vehicleId }
   await db.transaction('rw', [db.brakeEntries, db.expenses, db.vehicles], async () => {
     await db.brakeEntries.put(e)
     await mirrorCost(e.entryId, v.vehicleId, e.date, e.odometer, e.cost, `Brakes · ${e.type === 'Replaced' ? 'new pads' : 'checked'}${e.note ? ` · ${e.note}` : ''}`)
@@ -95,4 +98,11 @@ export async function deleteBrakeEntry(e: BrakeEntry) {
     await db.brakeEntries.delete(e.entryId)
     await db.expenses.delete(`EXP_${e.entryId}`)
   })
+  await deleteAttachmentsFor(e.entryId)
+}
+
+/** Deletes an expense and any receipts attached to it. */
+export async function deleteExpense(logId: string) {
+  await db.expenses.delete(logId)
+  await deleteAttachmentsFor(logId)
 }
