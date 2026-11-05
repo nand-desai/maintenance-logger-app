@@ -30,6 +30,9 @@ fun DashboardScreen(
     onAddSchedule: () -> Unit,
     onMarkDone: (MaintenanceSchedule) -> Unit,
     onRemind: (MaintenanceSchedule) -> Unit,
+    modelFile: java.io.File?,
+    modelVersion: Int,
+    onPickModel: () -> Unit,
     onDeleteSchedule: (MaintenanceSchedule) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -39,7 +42,7 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { GarageHeader(vehicle, vehicles, onSelectVehicle, onAddVehicle, onBump) }
-        item { Car3DView() }
+        item { Car3DView(modelFile, modelVersion, onPickModel) }
         if (vehicle != null) {
             item {
                 val h = overallHealth(schedules, vehicle.currentOdometer).style()

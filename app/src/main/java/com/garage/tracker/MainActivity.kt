@@ -63,6 +63,7 @@ private fun GarageApp(vm: GarageViewModel) {
     val logs by vm.logs.collectAsStateWithLifecycle()
     val reminders by vm.reminders.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
+    val modelVersion by vm.modelVersion.collectAsStateWithLifecycle()
 
     var tab by remember { mutableIntStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
@@ -76,6 +77,9 @@ private fun GarageApp(vm: GarageViewModel) {
 
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importBackup)
+    }
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(vm::importModel)
     }
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) vm.say("Notifications are blocked, so reminders won't show. Enable them in system settings.")
@@ -107,6 +111,16 @@ private fun GarageApp(vm: GarageViewModel) {
                             text = { Text("Import backup") }, leadingIcon = { Icon(Icons.Default.FileOpen, null) },
                             onClick = { menu = false; importPicker.launch(arrayOf("*/*")) },
                         )
+                        if (vehicle != null) {
+                            DropdownMenuItem(
+                                text = { Text("Set 3D model (.glb)") }, leadingIcon = { Icon(Icons.Default.ViewInAr, null) },
+                                onClick = { menu = false; modelPicker.launch(arrayOf("*/*")) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Remove 3D model") }, leadingIcon = { Icon(Icons.Default.HideImage, null) },
+                                onClick = { menu = false; vm.removeModel() },
+                            )
+                        }
                     }
                 },
             )
@@ -141,6 +155,9 @@ private fun GarageApp(vm: GarageViewModel) {
                         if (left < 0) "Overdue by ${"%,d".format(-left)} mi" else "About ${"%,d".format(left)} mi left (due at ${"%,d".format(sch.lastDoneOdometer + sch.intervalMiles)} mi)",
                     )
                 }, onDeleteSchedule = vm::deleteSchedule,
+                modelFile = vehicle?.let { vm.modelFile(it.vehicleId) },
+                modelVersion = modelVersion,
+                onPickModel = { modelPicker.launch(arrayOf("*/*")) },
                 modifier = m,
             )
             1 -> AnalyticsScreen(vehicle, logs, vm::deleteExpense, m)

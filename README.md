@@ -16,7 +16,7 @@ It is a debug-signed build for personal use. It is not a Play Store release.
 
 ## Features
 
-- **Garage:** switch between vehicles, bump the odometer with `+500 mi`, and see an interactive 3D model of your car.
+- **Garage:** switch between vehicles, bump the odometer with `+500 mi`, and see an interactive 3D model of your car (load your own `.glb` from your phone).
 - **Health at a glance:** a status pill (green / amber / coral) and a progress card for every maintenance item.
 - **Expenses:** lifetime cost, cost per mile, MPG, a category donut chart and a full history.
 - **Reminders:** schedule a notification for any date and time, or tap the bell on a maintenance card to pre-fill one. Reminders survive reboots.
@@ -24,13 +24,15 @@ It is a debug-signed build for personal use. It is not a Play Store release.
 
 ## Add a 3D model of your car
 
-Carlo shows a `.glb` model on the dashboard. Until you add one, it shows a placeholder.
+Carlo shows a `.glb` model on the dashboard, and each vehicle can have its own.
 
-1. Find a `.glb` file for your vehicle (see the prompt below).
-2. Name it `vw_golf_mk7.glb` and put it in `app/src/main/assets/`. That is the default filename the app looks for. To use a different name, change the default in `Car3DView.kt`.
-3. Rebuild the app. If you use the GitHub download, push the file to `main` and wait for the build to finish.
+1. Download a `.glb` file for your vehicle to your phone (see the prompt below).
+2. In Carlo, tap **Add a 3D model** on the dashboard, or open the ⋮ menu → **Set 3D model (.glb)**, and pick the file.
+3. Drag to rotate and pinch to zoom. To go back to the placeholder, use ⋮ → **Remove 3D model**.
 
-Good models are under about 15 MB, face the camera sideways or three-quarter on, and are licensed so you can use them (CC0 or CC-BY). Credit the author if the license asks for it.
+The model is copied into the app's private storage (50 MB limit), so you can delete the download afterwards. Models are not part of the JSON backup, so keep the `.glb` file if you move to a new phone.
+
+Good models are under about 15 MB, show a single car, and are licensed so you can use them (CC0 or CC-BY). Credit the author if the license asks for it.
 
 ### Prompt: ask an LLM to find a model for your car
 

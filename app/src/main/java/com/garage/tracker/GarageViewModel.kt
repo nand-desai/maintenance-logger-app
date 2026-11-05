@@ -118,6 +118,57 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         }.getOrElse { "Import failed: ${it.message ?: "unreadable file"}" }
     }
 
+    // ---- Per-vehicle 3D model (.glb), stored privately in the app ---------------------------------
+
+    private val _modelVersion = MutableStateFlow(0)
+    val modelVersion: StateFlow<Int> = _modelVersion
+
+    private fun modelsDir() = File(getApplication<Application>().filesDir, "models")
+    fun modelFile(vehicleId: String) = File(modelsDir(), "$vehicleId.glb")
+
+    fun importModel(uri: Uri) = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        _message.value = runCatching {
+            withContext(Dispatchers.IO) {
+                val dir = modelsDir().apply { mkdirs() }
+                val tmp = File(dir, "${v.vehicleId}.tmp")
+                try {
+                    getApplication<Application>().contentResolver.openInputStream(uri)!!.buffered().use { input ->
+                        val head = ByteArray(4)
+                        require(input.read(head) == 4 && String(head, Charsets.ISO_8859_1) == "glTF") {
+                            "that isn't a .glb file"
+                        }
+                        tmp.outputStream().use { out ->
+                            out.write(head)
+                            val buf = ByteArray(64 * 1024)
+                            var total = 4L
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                total += n
+                                require(total <= MAX_MODEL_BYTES) { "the file is over 50 MB" }
+                                out.write(buf, 0, n)
+                            }
+                        }
+                    }
+                    val target = modelFile(v.vehicleId)
+                    target.delete()
+                    check(tmp.renameTo(target)) { "couldn't save the file" }
+                } finally {
+                    tmp.delete()
+                }
+            }
+            _modelVersion.value++
+            "3D model updated"
+        }.getOrElse { "Couldn't use that file: ${it.message}" }
+    }
+
+    fun removeModel() = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        withContext(Dispatchers.IO) { modelFile(v.vehicleId).delete() }
+        _modelVersion.value++
+    }
+
     fun say(msg: String) { _message.value = msg }
     fun clearMessage() { _message.value = null }
 
@@ -128,6 +179,8 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         db.scheduleDao().upsert(MaintenanceSchedule("SCH_002", v.vehicleId, "Tire Rotation", 6000, 52000))
         db.scheduleDao().upsert(MaintenanceSchedule("SCH_003", v.vehicleId, "Brake Fluid", 20000, 40000))
     }
+
+    private companion object { const val MAX_MODEL_BYTES = 50L * 1024 * 1024 }
 
     private fun newId(prefix: String) = "${prefix}_${UUID.randomUUID().toString().take(8)}"
 }

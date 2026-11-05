@@ -1,17 +1,14 @@
 package com.garage.tracker.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.garage.tracker.ui.theme.Cream
 import com.garage.tracker.ui.theme.InkSoft
@@ -23,16 +20,30 @@ import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberNodes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.nio.ByteBuffer
 
 /**
  * Interactive Filament viewport. Drag to orbit, pinch to zoom; the car also spins gently.
- * Loads [modelAssetName] from app/src/main/assets and falls back to a friendly placeholder if the
- * asset is missing or fails to load.
+ * Shows the user's own `.glb` ([modelFile]) or a friendly placeholder with a button to add one.
+ * [version] changes whenever the file is replaced, which forces a reload.
  */
 @Composable
-fun Car3DView(modelAssetName: String = "vw_golf_mk7.glb", modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(24.dp)
-    val box = modifier.fillMaxWidth().height(260.dp).clip(shape).background(Cream)
+fun Car3DView(
+    modelFile: File?,
+    version: Int,
+    onPickModel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val box = modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(24.dp)).background(Cream)
+    val hasFile = remember(modelFile?.path, version) { modelFile?.exists() == true }
+
+    if (!hasFile) {
+        Placeholder(box, "Add a 3D model of your car", "Pick a .glb file", onPickModel)
+        return
+    }
 
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -41,19 +52,27 @@ fun Car3DView(modelAssetName: String = "vw_golf_mk7.glb", modifier: Modifier = M
     }
     val childNodes = rememberNodes()
 
-    val model = remember(modelAssetName) {
-        runCatching {
-            ModelNode(
-                modelInstance = modelLoader.createModelInstance(assetFileLocation = modelAssetName),
-                scaleToUnits = 1.5f,
-            )
-        }.getOrNull()
+    // Read the file off the main thread into a direct buffer for Filament.
+    val buffer by produceState<ByteBuffer?>(null, modelFile!!.path, version) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val bytes = modelFile.readBytes()
+                ByteBuffer.allocateDirect(bytes.size).apply { put(bytes); rewind() }
+            }.getOrNull()
+        }
+    }
+    if (buffer == null) {
+        Placeholder(box, "Loading 3D model…", null, null)
+        return
     }
 
+    val model = remember(buffer) {
+        runCatching {
+            ModelNode(modelInstance = modelLoader.createModelInstance(buffer!!), scaleToUnits = 1.5f)
+        }.getOrNull()
+    }
     if (model == null) {
-        Box(box, contentAlignment = Alignment.Center) {
-            Text("Add $modelAssetName to app/src/main/assets to see your car in 3D", color = InkSoft)
-        }
+        Placeholder(box, "Couldn't open that model", "Choose another .glb", onPickModel)
         return
     }
 
@@ -74,4 +93,14 @@ fun Car3DView(modelAssetName: String = "vw_golf_mk7.glb", modifier: Modifier = M
             model.rotation = model.rotation.copy(y = model.rotation.y + 0.3f)
         },
     )
+}
+
+@Composable
+private fun Placeholder(modifier: Modifier, text: String, action: String?, onAction: (() -> Unit)?) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(text, color = InkSoft)
+            if (action != null && onAction != null) FilledTonalButton(onClick = onAction) { Text(action) }
+        }
+    }
 }
