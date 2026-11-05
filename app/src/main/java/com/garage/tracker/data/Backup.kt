@@ -7,8 +7,8 @@ import java.time.Instant
 
 /** JSON export/import of the whole garage. Column names follow the schema in the README. */
 object Backup {
-    private const val APP = "wheelhouse"
-    private val ACCEPTED = setOf(APP, "pitstop")
+    private const val APP = "carlo"
+    private val ACCEPTED = setOf(APP, "wheelhouse", "pitstop")
     private const val FORMAT_VERSION = 1
 
     data class Counts(val vehicles: Int, val schedules: Int, val expenses: Int, val reminders: Int) {
@@ -48,7 +48,7 @@ object Backup {
      */
     suspend fun restore(db: GarageDatabase, text: String): Counts {
         val root = JSONObject(text)
-        require(root.optString("app") in ACCEPTED) { "This isn't a Wheelhouse backup file" }
+        require(root.optString("app") in ACCEPTED) { "This isn't a Carlo backup file" }
         val vehicles = root.optJSONArray("vehicles").objects().map {
             Vehicle(it.getString("vehicle_id"), it.getString("make"), it.getString("model"),
                 it.getInt("year"), it.getInt("current_odometer"), it.optString("color_hex", "#3B82F6"))

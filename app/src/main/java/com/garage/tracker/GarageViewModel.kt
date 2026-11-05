@@ -104,7 +104,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun createBackupFile(): File = withContext(Dispatchers.IO) {
         val dir = File(getApplication<Application>().cacheDir, "backups").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
-        File(dir, "wheelhouse-backup-${LocalDate.now()}.json").also { it.writeText(Backup.toJson(db)) }
+        File(dir, "carlo-backup-${LocalDate.now()}.json").also { it.writeText(Backup.toJson(db)) }
     }
 
     fun importBackup(uri: Uri) = viewModelScope.launch {

@@ -1,4 +1,4 @@
-# Wheelhouse 🛞
+# Carlo 🚗
 
 A friendly Android app (Kotlin, Jetpack Compose, Material 3) for tracking maintenance, costs and reminders across all the vehicles in your garage. Everything is stored locally on the device with Room, so it works fully offline.
 

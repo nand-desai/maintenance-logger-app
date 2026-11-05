@@ -25,7 +25,7 @@ class ReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val n = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_wheelhouse)
+            .setSmallIcon(R.drawable.ic_stat_carlo)
             .setContentTitle(title)
             .setContentText(note.ifBlank { "Time to give your ride some love 🔧" })
             .setStyle(NotificationCompat.BigTextStyle().bigText(note.ifBlank { "Time to give your ride some love 🔧" }))
