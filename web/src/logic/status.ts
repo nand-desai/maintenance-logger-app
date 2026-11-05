@@ -70,7 +70,7 @@ export function buildTiles(d: GarageData): Tile[] {
       : [`All on track · next in ${km(kmRemaining(next, odo))}`, 'good']
   }
 
-  const month = new Date().toISOString().slice(0, 7)
+  const month = new Date().toLocaleDateString('en-CA').slice(0, 7)
   const spent = d.expenses.filter((e) => e.date.startsWith(month)).reduce((t, e) => t + e.cost, 0)
 
   const mounted = d.tireSets.find((t) => t.mounted)

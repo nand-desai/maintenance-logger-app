@@ -1,11 +1,8 @@
 import { Icon } from '../ui'
 
 const NOTES: Record<string, string> = {
-  expenses: 'Expense log, the donut chart, monthly insurance that adds itself, and "Other" expenses with a description.',
   tires: 'The top-down wheel diagram, tire sets and seasonal swaps, tread depth and punctures.',
   brakes: 'Brake pad thickness with the tiny thick/thin pad visual and a wear estimate.',
-  wash: 'When the car was last washed, and what each wash cost.',
-  notes: 'Things to mention to your mechanic, shareable as a list.',
   reminders: 'Scheduled reminders. On iPhone these will start as calendar (.ics) events and in-app alerts.',
 }
 

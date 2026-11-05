@@ -37,4 +37,5 @@ class CarloDB extends Dexie {
 export const db = new CarloDB()
 
 export const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().slice(0, 8)}`
-export const today = () => new Date().toISOString().slice(0, 10)
+/** Today as YYYY-MM-DD in the phone's own time zone. */
+export const today = () => new Date().toLocaleDateString('en-CA')

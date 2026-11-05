@@ -28,20 +28,20 @@ npm run build      # type-checks, then builds to web/dist
 
 ## Status
 
-**Done (phase 1):** app shell and navigation, light/dark/system theme, welcome screen, home hub with
-live status tiles and the attention banner, vehicle photo, add/edit/delete vehicle, odometer,
-**Maintenance** (add, edit, mark done, delete), backup export/import compatible with Android,
-installable PWA with icons and offline support.
+**Done:** app shell and navigation, light/dark/system theme, welcome screen, **? help with install
+instructions** (iPhone Safari and Android Chrome), home hub with live status tiles and the attention banner,
+vehicle photo, add/edit/delete vehicle (with your own colours), odometer, **Maintenance**, **Expenses**
+(add/edit/delete, "Other" with a description, donut chart, monthly insurance that adds itself and catches
+up missed months), **Car wash**, **Notes** for the mechanic (shareable list), backup export/import
+compatible with Android, installable PWA with icons and offline support.
 
 **Next, in order:**
-1. Expenses (log, edit, donut chart, "Other" with a description, monthly insurance that adds itself)
-2. Tires (wheel diagram, sets, swaps, tread depth, punctures)
-3. Brakes (pad thickness with the thick/thin pad visual)
-4. Car wash and Notes
-5. Reminders: iPhone Safari has no scheduled local notifications, so start with calendar (`.ics`)
+1. Tires (wheel diagram, sets, swaps, tread depth, punctures)
+2. Brakes (pad thickness with the thick/thin pad visual)
+3. Reminders: iPhone Safari has no scheduled local notifications, so start with calendar (`.ics`)
    export and in-app alerts; real push needs a small server
-6. AI cartoon-car prompt and background removal for the vehicle picture
-7. Saved colours sync, polish and tests
+4. AI cartoon-car prompt and background removal for the vehicle picture
+5. Polish and tests
 
 ## iPhone limits to keep in mind
 - Safari can't write to a folder you choose, so there is no silent auto-backup. Back up with

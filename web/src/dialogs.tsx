@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { db, newId } from './db'
+import { db, newId, today } from './db'
 import { saveSettings } from './store'
 import { Field, Sheet } from './ui'
-import type { MaintenanceSchedule, Settings, Vehicle } from './types'
+import { entryLitresPer100 } from './logic/expenses'
+import { CATEGORY_LIST } from './logic/expenses'
+import { runRecurring } from './logic/recurring'
+import { Categories, type CarNote, type ExpenseLog, type MaintenanceSchedule, type RecurringExpense, type Settings, type Vehicle } from './types'
 
 const PRESET_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280']
 const num = (s: string) => (s.trim() === '' ? NaN : Number(s.replace(',', '.')))
@@ -99,6 +102,130 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
           await db.schedules.put({
             scheduleId: initial?.scheduleId ?? newId('SCH'), vehicleId: vehicle.vehicleId,
             serviceName: name.trim(), intervalKm: num(interval), lastDoneOdometer: num(last),
+          })
+          onClose()
+        }}>Save</button>
+      </div>
+    </Sheet>
+  )
+}
+
+/** Add an expense, or edit one when [initial] is given. */
+export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose }: {
+  vehicle: Vehicle; initial?: ExpenseLog; previousFuelOdometer: number | null; onClose: () => void
+}) {
+  const [date, setDate] = useState(initial?.date ?? today())
+  const [odo, setOdo] = useState((initial?.odometer ?? vehicle.currentOdometer).toString())
+  const [category, setCategory] = useState<string>(initial?.category ?? Categories.FUEL)
+  const [cost, setCost] = useState(initial?.cost?.toString() ?? '')
+  const [litres, setLitres] = useState(initial?.fuelLiters ? initial.fuelLiters.toString() : '')
+  const [note, setNote] = useState(initial?.note ?? '')
+  const isFuel = category === Categories.FUEL
+  const isOther = category === Categories.OTHER
+  const rate = isFuel && Number.isInteger(num(odo)) ? entryLitresPer100(previousFuelOdometer, num(odo), num(litres) || 0) : null
+  const valid = date && Number.isInteger(num(odo)) && !Number.isNaN(num(cost)) && (!isOther || note.trim())
+
+  const save = async () => {
+    await db.expenses.put({
+      logId: initial?.logId ?? newId('LOG'), vehicleId: vehicle.vehicleId, date, odometer: num(odo), category,
+      cost: num(cost), fuelLiters: isFuel ? num(litres) || 0 : 0, note: isOther ? note.trim() : '',
+    })
+    if (!initial && num(odo) > vehicle.currentOdometer) await db.vehicles.update(vehicle.vehicleId, { currentOdometer: num(odo) })
+    onClose()
+  }
+  return (
+    <Sheet title={initial ? 'Edit entry' : 'Add entry'} onClose={onClose}>
+      <label className="f">Date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <Field label="Odometer (km)" value={odo} onChange={setOdo} inputMode="numeric" />
+      <div className="small soft">Category</div>
+      <div className="chips">
+        {CATEGORY_LIST.map((c) => <button key={c} className={`chip ${c === category ? 'on' : ''}`} onClick={() => setCategory(c)}>{c}</button>)}
+      </div>
+      {isOther && <Field label="What was it for? (e.g. remote starter)" value={note} onChange={setNote} />}
+      <Field label="Cost (CAD)" value={cost} onChange={setCost} inputMode="decimal" />
+      {isFuel && <Field label="Fuel (litres)" value={litres} onChange={setLitres} inputMode="decimal" />}
+      {rate != null && <div className="small soft">≈ {rate.toFixed(1)} L/100 km since the last fill-up</div>}
+      <div className="actions">
+        <button className="btn text" onClick={onClose}>Cancel</button>
+        <button className="btn" disabled={!valid} onClick={save}>Save</button>
+      </div>
+    </Sheet>
+  )
+}
+
+/** Monthly insurance that adds itself to the expenses on the same day each month. */
+export function InsuranceDialog({ vehicle, existing, onClose }: { vehicle: Vehicle; existing?: RecurringExpense; onClose: () => void }) {
+  const [amount, setAmount] = useState(existing?.amount?.toString() ?? '')
+  const [date, setDate] = useState(existing?.nextDue ?? today())
+  const [active, setActive] = useState(existing?.active ?? true)
+  const save = async () => {
+    await db.recurring.put({
+      recurringId: `REC_${vehicle.vehicleId}_Insurance`, vehicleId: vehicle.vehicleId, category: Categories.INSURANCE,
+      amount: num(amount), dayOfMonth: Number(date.slice(8, 10)), nextDue: date, active,
+    })
+    await runRecurring()
+    onClose()
+  }
+  return (
+    <Sheet title="Monthly insurance" onClose={onClose}>
+      <Field label="Monthly payment (CAD)" value={amount} onChange={setAmount} inputMode="decimal" />
+      <label className="f">{existing ? 'Next payment date' : 'First payment date'}<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <div className="small soft">Carlo adds this to your expenses on the same day each month, including any payments from that date up to today.</div>
+      <label className="row"><span className="grow">Add automatically</span><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} style={{ width: 22, height: 22 }} /></label>
+      {existing && <button className="btn text danger" onClick={async () => { await db.recurring.delete(existing.recurringId); onClose() }}>Remove monthly insurance</button>}
+      <div className="actions">
+        <button className="btn text" onClick={onClose}>Cancel</button>
+        <button className="btn" disabled={!(num(amount) > 0) || !date} onClick={save}>Save</button>
+      </div>
+    </Sheet>
+  )
+}
+
+/** Date and price: that's all a car wash needs. */
+export function WashDialog({ vehicle, initial, onClose }: { vehicle: Vehicle; initial?: ExpenseLog; onClose: () => void }) {
+  const [date, setDate] = useState(initial?.date ?? today())
+  const [cost, setCost] = useState(initial?.cost?.toString() ?? '')
+  return (
+    <Sheet title={initial ? 'Edit car wash' : 'Log a car wash'} onClose={onClose}>
+      <label className="f">Date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <Field label="Cost (CAD, 0 if free)" value={cost} onChange={setCost} inputMode="decimal" />
+      <div className="actions">
+        <button className="btn text" onClick={onClose}>Cancel</button>
+        <button className="btn" disabled={Number.isNaN(num(cost)) || !date} onClick={async () => {
+          await db.expenses.put({
+            logId: initial?.logId ?? newId('LOG'), vehicleId: vehicle.vehicleId, date, odometer: initial?.odometer ?? vehicle.currentOdometer,
+            category: Categories.CAR_WASH, cost: num(cost), fuelLiters: 0, note: '',
+          })
+          onClose()
+        }}>Save</button>
+      </div>
+    </Sheet>
+  )
+}
+
+const NOTE_TAGS = ['Noise', 'Vibration', 'Leak', 'Smell', 'Warning light', 'Handling', 'General']
+
+/** Add or edit something to mention to the mechanic. */
+export function NoteDialog({ vehicle, initial, onClose }: { vehicle: Vehicle; initial?: CarNote; onClose: () => void }) {
+  const [tag, setTag] = useState(initial?.tag ?? 'General')
+  const [text, setText] = useState(initial?.text ?? '')
+  const [date, setDate] = useState(initial?.date ?? today())
+  const [odo, setOdo] = useState((initial?.odometer ?? vehicle.currentOdometer).toString())
+  return (
+    <Sheet title={initial ? 'Edit note' : 'Add a note'} onClose={onClose}>
+      <div className="small soft">Type</div>
+      <div className="chips">{NOTE_TAGS.map((t) => <button key={t} className={`chip ${t === tag ? 'on' : ''}`} onClick={() => setTag(t)}>{t}</button>)}</div>
+      <label className="f">What did you notice?
+        <textarea rows={3} value={text} placeholder="e.g. squeaking when braking, mostly cold mornings" onChange={(e) => setText(e.target.value)} />
+      </label>
+      <label className="f">Date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <Field label="Odometer (km)" value={odo} onChange={setOdo} inputMode="numeric" />
+      <div className="actions">
+        <button className="btn text" onClick={onClose}>Cancel</button>
+        <button className="btn" disabled={!text.trim() || !Number.isInteger(num(odo))} onClick={async () => {
+          await db.notes.put({
+            noteId: initial?.noteId ?? newId('NOTE'), vehicleId: vehicle.vehicleId, date, odometer: num(odo),
+            tag, text: text.trim(), done: initial?.done ?? false,
           })
           onClose()
         }}>Save</button>
