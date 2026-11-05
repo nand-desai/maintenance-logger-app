@@ -1,5 +1,6 @@
 package com.garage.tracker.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,10 +21,12 @@ import com.garage.tracker.ui.theme.*
 fun MaintenanceScreen(
     vehicle: Vehicle,
     schedules: List<MaintenanceSchedule>,
+    records: List<MaintenanceRecord>,
     dueSoonKm: Int,
     onAddSchedule: () -> Unit,
     onEditSchedule: (MaintenanceSchedule) -> Unit,
     onMarkDone: (MaintenanceSchedule) -> Unit,
+    onEditRecord: (MaintenanceSchedule, MaintenanceRecord) -> Unit,
     onRemind: (MaintenanceSchedule) -> Unit,
     onDeleteSchedule: (MaintenanceSchedule) -> Unit,
     modifier: Modifier = Modifier,
@@ -52,6 +55,8 @@ fun MaintenanceScreen(
         items(schedules.sortedBy { it.kmRemaining(vehicle.currentOdometer) }, key = { it.scheduleId }) { s ->
             MaintenanceCard(
                 s, vehicle.currentOdometer, dueSoonKm,
+                records = records.filter { it.scheduleId == s.scheduleId },
+                onEditRecord = { onEditRecord(s, it) },
                 onDone = { onMarkDone(s) }, onRemind = { onRemind(s) },
                 onEdit = { onEditSchedule(s) }, onDelete = { onDeleteSchedule(s) },
             )
@@ -62,6 +67,7 @@ fun MaintenanceScreen(
 @Composable
 private fun MaintenanceCard(
     s: MaintenanceSchedule, odometer: Int, dueSoonKm: Int,
+    records: List<MaintenanceRecord>, onEditRecord: (MaintenanceRecord) -> Unit,
     onDone: () -> Unit, onRemind: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit,
 ) {
     var open by rememberSaveable(s.scheduleId) { mutableStateOf(false) }
@@ -91,9 +97,25 @@ private fun MaintenanceCard(
             DetailRow("Last done at", "${"%,d".format(s.lastDoneOdometer)} km")
             DetailRow("Next due at", "${"%,d".format(dueAt)} km")
             DetailRow("Status", h.label)
+            if (records.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("History", style = MaterialTheme.typography.labelLarge, color = InkSoft)
+                records.forEach { r ->
+                    Row(Modifier.fillMaxWidth().clickable { onEditRecord(r) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "${r.date} · ${"%,d".format(r.odometer)} km" + if (r.cost > 0) " · ${money(r.cost)}" else "",
+                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+                            )
+                            if (r.note.isNotBlank()) Text(r.note, color = InkSoft, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(Icons.Default.Edit, "Edit record", tint = InkSoft, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onDone, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Check, null); Spacer(Modifier.width(6.dp)); Text("Done now") }
+                Button(onClick = onDone, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Check, null); Spacer(Modifier.width(6.dp)); Text("Done") }
                 OutlinedButton(onClick = onRemind, modifier = Modifier.weight(1f)) { Icon(Icons.Default.NotificationAdd, null); Spacer(Modifier.width(6.dp)); Text("Remind me") }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

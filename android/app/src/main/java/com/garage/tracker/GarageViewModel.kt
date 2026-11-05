@@ -52,6 +52,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { v -> v?.let { db.expenseDao().observeFor(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val records: StateFlow<List<MaintenanceRecord>> = activeVehicle
+        .flatMapLatest { v -> v?.let { db.recordDao().observe(it.vehicleId) } ?: flowOf(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val tireSets: StateFlow<List<TireSet>> = activeVehicle
         .flatMapLatest { v -> v?.let { db.tireDao().observeSets(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -117,13 +121,45 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         db.scheduleDao().upsert(MaintenanceSchedule(newId("SCH"), v.vehicleId, name, interval, lastDone))
     }
 
-    fun markDone(s: MaintenanceSchedule) = viewModelScope.launch {
-        val v = activeVehicle.value ?: return@launch
-        db.scheduleDao().upsert(s.copy(lastDoneOdometer = v.currentOdometer))
+    /**
+     * Records a completed service (or edits an earlier record). The service's "last done" moves to the newest
+     * record, and a cost is added to Expenses under Service, kept in step if the record is edited or deleted.
+     */
+    fun saveServiceRecord(s: MaintenanceSchedule, existing: MaintenanceRecord?, date: String, odometer: Int, cost: Double, note: String) =
+        viewModelScope.launch {
+            val v = activeVehicle.value ?: return@launch
+            val r = MaintenanceRecord(existing?.recordId ?: newId("MNT"), v.vehicleId, s.scheduleId, s.serviceName, date, odometer, cost, note)
+            db.withTransaction {
+                db.recordDao().upsert(r)
+                mirrorCost(r.recordId, v.vehicleId, date, odometer, cost, s.serviceName + if (note.isNotBlank()) " · $note" else "")
+                refreshLastDone(s)
+            }
+            if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+        }
+
+    fun deleteServiceRecord(r: MaintenanceRecord) = viewModelScope.launch {
+        db.withTransaction {
+            db.recordDao().delete(r)
+            db.expenseDao().deleteById("EXP_${r.recordId}")
+            db.scheduleDao().getAll().firstOrNull { it.scheduleId == r.scheduleId }?.let { refreshLastDone(it) }
+        }
+    }
+
+    private suspend fun refreshLastDone(s: MaintenanceSchedule) {
+        val newest = db.recordDao().forSchedule(s.scheduleId).maxOfOrNull { it.odometer } ?: return
+        db.scheduleDao().upsert(s.copy(lastDoneOdometer = newest))
     }
 
     fun updateSchedule(s: MaintenanceSchedule) = viewModelScope.launch { db.scheduleDao().upsert(s) }
-    fun deleteSchedule(s: MaintenanceSchedule) = viewModelScope.launch { db.scheduleDao().delete(s) }
+    fun deleteSchedule(s: MaintenanceSchedule) = viewModelScope.launch {
+        db.withTransaction {
+            db.recordDao().forSchedule(s.scheduleId).forEach { r ->
+                db.recordDao().delete(r)
+                db.expenseDao().deleteById("EXP_${r.recordId}")
+            }
+            db.scheduleDao().delete(s)
+        }
+    }
 
     // ---- Expenses ------------------------------------------------------------------------------
 
@@ -176,7 +212,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                 note.ifBlank { "Mounted ${set.name}" }, cost,
             )
             db.tireDao().upsertEvent(e)
-            mirrorCost(e.eventId, v.vehicleId, date, odometer, cost)
+            mirrorCost(e.eventId, v.vehicleId, date, odometer, cost, "Tire swap · ${set.name}")
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
         }
     }
@@ -194,7 +230,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         )
         db.withTransaction {
             db.tireDao().upsertEvent(e)
-            mirrorCost(e.eventId, v.vehicleId, date, odometer, cost)
+            mirrorCost(e.eventId, v.vehicleId, date, odometer, cost, "Tires · $type" + if (note.isNotBlank()) " · $note" else "")
         }
         if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
     }
@@ -207,9 +243,9 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Keeps a matching Service expense in sync with a cost entered on a tire or brake entry. */
-    private suspend fun mirrorCost(sourceId: String, vehicleId: String, date: String, odometer: Int, cost: Double) {
+    private suspend fun mirrorCost(sourceId: String, vehicleId: String, date: String, odometer: Int, cost: Double, what: String) {
         val id = "EXP_$sourceId"
-        if (cost > 0) db.expenseDao().upsert(ExpenseLog(id, vehicleId, date, odometer, Categories.SERVICE, cost, 0.0))
+        if (cost > 0) db.expenseDao().upsert(ExpenseLog(id, vehicleId, date, odometer, Categories.SERVICE, cost, 0.0, what))
         else db.expenseDao().deleteById(id)
     }
 
@@ -233,7 +269,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         val e = BrakeEntry(existing?.entryId ?: newId("BRK"), v.vehicleId, date, odometer, type, frontMm, rearMm, cost, note)
         db.withTransaction {
             db.brakeDao().upsert(e)
-            mirrorCost(e.entryId, v.vehicleId, date, odometer, cost)
+            mirrorCost(e.entryId, v.vehicleId, date, odometer, cost, "Brakes · ${if (type == BrakeType.REPLACED) "new pads" else "checked"}" + if (note.isNotBlank()) " · $note" else "")
         }
         if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
     }

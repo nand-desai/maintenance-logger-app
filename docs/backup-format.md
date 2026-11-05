@@ -21,7 +21,7 @@ Dates are ISO `YYYY-MM-DD`. Missing optional fields are treated as `null` / empt
     { "schedule_id": "SCH_...", "vehicle_id": "CAR_...", "service_name": "Engine oil & filter",
       "interval_km": 10000, "last_done_odometer": 88000 }
   ],
-  "maintenance_records": [      // optional; written by the web app (Android ignores it for now)
+  "maintenance_records": [      // optional; written and read by both apps
     { "record_id": "MNT_...", "schedule_id": "SCH_...", "vehicle_id": "CAR_...", "service_name": "Brake fluid",
       "date": "2026-11-05", "odometer": 94000, "cost": 149.99, "note": "Dealer flush, DOT 4" }
   ],
@@ -77,4 +77,5 @@ them next to the backup in the automatic-backup folder; the web app keeps them i
 - **Tread**: green at 4 mm and above, amber down to 3 mm, coral below. Brake pads: green at 6 mm and above, amber down to 3 mm, coral below.
 - **Rotation** counts a seasonal *Swap* as a rotation. With a Summer or Winter set on the car it stays green until the set no longer matches the time of year (winter tires from 15 October to 15 April); otherwise it falls back to a 10,000 km guideline.
 - **Insurance** payments added automatically use the id `<recurring_id>_<YYYY-MM-DD>` so running the catch-up twice never double-adds a month.
-- A **cost** entered on a completed service, tire entry or brake entry is mirrored as a *Service* expense with id `EXP_<record_id, event_id or entry_id>`. Editing the entry updates that expense; deleting the entry deletes it.
+- A **cost** entered on a completed service, tire entry or brake entry is mirrored as a *Service* expense with id `EXP_<record_id, event_id or entry_id>`. Its `note` says what it was for (for example `Brake fluid · Dealer flush`, `Tire swap · Winter set`, `Tires · Puncture`, `Brakes · new pads`), and the Expenses list shows it as `Service · <note>`. Editing the entry updates that expense; deleting the entry deletes it.
+- Marking a service **done** adds a `maintenance_records` entry and moves the service's `last_done_odometer` to the newest record's odometer. Deleting a service deletes its records and their mirrored expenses.

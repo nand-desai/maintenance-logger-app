@@ -41,8 +41,8 @@ with Android, installable PWA with offline support.
 **Reminders on iPhone:** browsers can't schedule alerts while the app is closed, so each reminder has
 **Add to calendar**, which hands a `.ics` file (with an alarm) to your calendar app.
 
-**Still to do:** the AI cartoon-car prompt and background removal for the vehicle picture, an in-app
-alert for due reminders, and the Android app learning the new `maintenance_records` list.
+**Still to do:** the AI cartoon-car prompt and background removal for the vehicle picture, and an in-app
+alert for due reminders.
 
 ## iPhone limits to keep in mind
 - Safari can't write to a folder you choose, so there is no silent auto-backup. Back up with

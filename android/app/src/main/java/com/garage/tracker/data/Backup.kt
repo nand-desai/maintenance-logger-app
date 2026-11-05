@@ -13,11 +13,11 @@ object Backup {
 
     data class Counts(
         val vehicles: Int, val schedules: Int, val expenses: Int, val reminders: Int,
-        val tireSets: Int = 0, val tireEvents: Int = 0, val brakeEntries: Int = 0, val notes: Int = 0,
+        val tireSets: Int = 0, val tireEvents: Int = 0, val brakeEntries: Int = 0, val notes: Int = 0, val records: Int = 0,
     ) {
         override fun toString() =
             "$vehicles vehicles, $schedules services, $expenses expenses, $reminders reminders, " +
-                "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries, $notes notes"
+                "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries, $notes notes, $records service records"
     }
 
     suspend fun toJson(db: GarageDatabase, settings: JSONObject? = null): String {
@@ -33,6 +33,11 @@ object Backup {
             JSONObject().put("schedule_id", it.scheduleId).put("vehicle_id", it.vehicleId)
                 .put("service_name", it.serviceName).put("interval_km", it.intervalKm)
                 .put("last_done_odometer", it.lastDoneOdometer)
+        }))
+        root.put("maintenance_records", JSONArray(db.recordDao().all().map {
+            JSONObject().put("record_id", it.recordId).put("schedule_id", it.scheduleId).put("vehicle_id", it.vehicleId)
+                .put("service_name", it.serviceName).put("date", it.date).put("odometer", it.odometer)
+                .put("cost", it.cost).put("note", it.note)
         }))
         root.put("expense_logs", JSONArray(db.expenseDao().getAll().map {
             JSONObject().put("log_id", it.logId).put("vehicle_id", it.vehicleId).put("date", it.date)
@@ -88,6 +93,11 @@ object Backup {
             MaintenanceSchedule(it.getString("schedule_id"), it.getString("vehicle_id"),
                 it.getString("service_name"), it.getInt("interval_km"), it.getInt("last_done_odometer"))
         }
+        val records = root.optJSONArray("maintenance_records").objects().map {
+            MaintenanceRecord(it.getString("record_id"), it.getString("vehicle_id"), it.getString("schedule_id"),
+                it.getString("service_name"), it.getString("date"), it.getInt("odometer"),
+                it.optDouble("cost", 0.0), it.optString("note", ""))
+        }
         val expenses = root.optJSONArray("expense_logs").objects().map {
             ExpenseLog(it.getString("log_id"), it.getString("vehicle_id"), it.getString("date"),
                 it.getInt("odometer"), it.getString("category"), it.getDouble("cost"),
@@ -123,6 +133,7 @@ object Backup {
         db.withTransaction {
             vehicles.forEach { db.vehicleDao().upsert(it) }
             schedules.forEach { db.scheduleDao().upsert(it) }
+            records.forEach { db.recordDao().upsert(it) }
             expenses.forEach { db.expenseDao().upsert(it) }
             reminders.forEach { db.reminderDao().upsert(it) }
             tireSets.forEach { db.tireDao().upsertSet(it) }
@@ -131,7 +142,7 @@ object Backup {
             recurring.forEach { db.recurringDao().upsert(it) }
             notes.forEach { db.noteDao().upsert(it) }
         }
-        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size, brakes.size, notes.size)
+        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size, brakes.size, notes.size, records.size)
     }
 
     private fun JSONObject.optMm(key: String): Double? = if (isNull(key) || !has(key)) null else getDouble(key)

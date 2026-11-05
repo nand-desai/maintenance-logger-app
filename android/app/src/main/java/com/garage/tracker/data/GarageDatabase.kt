@@ -10,9 +10,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         Vehicle::class, MaintenanceSchedule::class, ExpenseLog::class, Reminder::class,
-        TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class, CarNote::class,
+        TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class, CarNote::class, MaintenanceRecord::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class GarageDatabase : RoomDatabase() {
@@ -24,6 +24,7 @@ abstract class GarageDatabase : RoomDatabase() {
     abstract fun brakeDao(): BrakeDao
     abstract fun recurringDao(): RecurringDao
     abstract fun noteDao(): NoteDao
+    abstract fun recordDao(): RecordDao
 
     companion object {
         @Volatile private var instance: GarageDatabase? = null
@@ -31,7 +32,7 @@ abstract class GarageDatabase : RoomDatabase() {
         fun get(context: Context): GarageDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, GarageDatabase::class.java, "garage.db",
-            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).fallbackToDestructiveMigration().build().also { instance = it }
+            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).fallbackToDestructiveMigration().build().also { instance = it }
         }
     }
 }
@@ -98,5 +99,18 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
                 "PRIMARY KEY(`noteId`), FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`vehicleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_car_notes_vehicleId` ON `car_notes` (`vehicleId`)")
+    }
+}
+
+/** Adds the history of completed services. */
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `maintenance_records` (`recordId` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, " +
+                "`scheduleId` TEXT NOT NULL, `serviceName` TEXT NOT NULL, `date` TEXT NOT NULL, `odometer` INTEGER NOT NULL, " +
+                "`cost` REAL NOT NULL, `note` TEXT NOT NULL, PRIMARY KEY(`recordId`), " +
+                "FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`vehicleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_maintenance_records_vehicleId` ON `maintenance_records` (`vehicleId`)")
     }
 }

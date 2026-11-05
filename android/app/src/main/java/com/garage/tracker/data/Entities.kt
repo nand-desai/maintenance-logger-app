@@ -156,6 +156,23 @@ data class CarNote(
     val done: Boolean,
 )
 
+/** One completed service: when, at what odometer, what it cost and any notes. */
+@Entity(
+    tableName = "maintenance_records",
+    foreignKeys = [ForeignKey(Vehicle::class, ["vehicleId"], ["vehicleId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("vehicleId")],
+)
+data class MaintenanceRecord(
+    @PrimaryKey val recordId: String,
+    val vehicleId: String,
+    val scheduleId: String,
+    val serviceName: String,
+    val date: String,
+    val odometer: Int,
+    val cost: Double,
+    val note: String,
+)
+
 object NoteTags {
     const val GENERAL = "General"
     val all = listOf("Noise", "Vibration", "Leak", "Smell", "Warning light", "Handling", GENERAL)

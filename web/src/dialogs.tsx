@@ -128,7 +128,9 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
   const save = async () => {
     await db.expenses.put({
       logId: initial?.logId ?? newId('LOG'), vehicleId: vehicle.vehicleId, date, odometer: num(odo), category,
-      cost: num(cost), fuelLiters: isFuel ? num(litres) || 0 : 0, note: isOther ? note.trim() : '',
+      cost: num(cost), fuelLiters: isFuel ? num(litres) || 0 : 0,
+      // keep the description of a service/tire/brake expense; "Other" uses what was typed
+      note: isOther ? note.trim() : initial && initial.category !== Categories.OTHER ? initial.note : '',
     })
     if (!initial && num(odo) > vehicle.currentOdometer) await db.vehicles.update(vehicle.vehicleId, { currentOdometer: num(odo) })
     onClose()

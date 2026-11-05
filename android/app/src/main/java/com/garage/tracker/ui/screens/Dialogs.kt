@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import com.garage.tracker.data.ExpenseLog
+import com.garage.tracker.data.MaintenanceRecord
 import com.garage.tracker.data.MaintenanceSchedule
 import com.garage.tracker.data.RecurringExpense
 import com.garage.tracker.data.Vehicle
@@ -94,7 +95,11 @@ fun AddEntryDialog(
             TextButton(
                 enabled = odoV != null && costV != null && (category != Categories.OTHER || note.isNotBlank()),
                 onClick = {
-                    onSave(date.toString(), odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0, if (category == Categories.OTHER) note.trim() else "")
+                    onSave(
+                        date.toString(), odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0,
+                        // keep the description of a service/tire/brake expense; "Other" uses what was typed
+                        if (category == Categories.OTHER) note.trim() else if (initial?.category != Categories.OTHER) initial?.note.orEmpty() else "",
+                    )
                     onDismiss()
                 },
             ) { Text("Save") }
@@ -287,6 +292,47 @@ fun InsurancePlanDialog(
         },
         confirmButton = {
             TextButton(enabled = (amount.toNumber() ?: 0.0) > 0, onClick = { onSave(amount.toNumber()!!, date, active); onDismiss() }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Mark a service as done: date, odometer, cost and notes. A cost is added to Expenses automatically. */
+@Composable
+fun ServiceDoneDialog(
+    schedule: MaintenanceSchedule,
+    initial: MaintenanceRecord?,
+    defaultOdometer: Int,
+    onDismiss: () -> Unit,
+    onSave: (date: String, odometer: Int, cost: Double, note: String) -> Unit,
+    onDelete: (() -> Unit)?,
+) {
+    var date by remember { mutableStateOf(parseDate(initial?.date)) }
+    var odo by remember { mutableStateOf((initial?.odometer ?: defaultOdometer).toString()) }
+    var cost by remember { mutableStateOf(initial?.cost?.takeIf { it > 0 }?.toString() ?: "") }
+    var note by remember { mutableStateOf(initial?.note ?: "") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "Done: ${schedule.serviceName}" else "Edit: ${schedule.serviceName}") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DateButton(date, { date = it })
+                Field(odo, { odo = it }, "Odometer (km)", num)
+                Field(cost, { cost = it }, "Cost (CAD, optional)", dec)
+                OutlinedTextField(
+                    note, { note = it }, label = { Text("Notes (optional)") },
+                    placeholder = { Text("e.g. synthetic 5W-30, which garage, what the mechanic said") },
+                    minLines = 3, modifier = Modifier.fillMaxWidth(),
+                )
+                Text("A cost is added to your Expenses automatically.", style = MaterialTheme.typography.bodySmall)
+                if (onDelete != null) TextButton(onClick = onDelete) { Text("Delete this record") }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = odo.toIntOrNull() != null && (cost.isBlank() || cost.toNumber() != null),
+                onClick = { onSave(date.toString(), odo.toInt(), cost.toNumber() ?: 0.0, note.trim()); onDismiss() },
+            ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )

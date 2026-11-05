@@ -100,6 +100,7 @@ private fun GarageApp(vm: GarageViewModel) {
     val logs by vm.logs.collectAsStateWithLifecycle()
     val reminders by vm.reminders.collectAsStateWithLifecycle()
     val tireSets by vm.tireSets.collectAsStateWithLifecycle()
+    val records by vm.records.collectAsStateWithLifecycle()
     val tireEvents by vm.tireEvents.collectAsStateWithLifecycle()
     val brakeEntries by vm.brakeEntries.collectAsStateWithLifecycle()
     val notes by vm.notes.collectAsStateWithLifecycle()
@@ -115,6 +116,8 @@ private fun GarageApp(vm: GarageViewModel) {
 
     // What the open dialog is editing (null = adding something new)
     var editingSchedule by remember { mutableStateOf<MaintenanceSchedule?>(null) }
+    var doneTarget by remember { mutableStateOf<MaintenanceSchedule?>(null) }
+    var editingRecord by remember { mutableStateOf<MaintenanceRecord?>(null) }
     var editingExpense by remember { mutableStateOf<ExpenseLog?>(null) }
     var editingWash by remember { mutableStateOf<ExpenseLog?>(null) }
     var editingSet by remember { mutableStateOf<TireSet?>(null) }
@@ -273,10 +276,11 @@ private fun GarageApp(vm: GarageViewModel) {
                             onSetupBackup = { screen = "settings" },
                         )
                         "maintenance" -> MaintenanceScreen(
-                            vehicle = active, schedules = schedules, dueSoonKm = settings.dueSoonKm,
+                            vehicle = active, schedules = schedules, records = records, dueSoonKm = settings.dueSoonKm,
                             onAddSchedule = { editingSchedule = null; dialog = "schedule" },
                             onEditSchedule = { editingSchedule = it; dialog = "schedule" },
-                            onMarkDone = vm::markDone,
+                            onMarkDone = { doneTarget = it; editingRecord = null; dialog = "done" },
+                            onEditRecord = { sch, rec -> doneTarget = sch; editingRecord = rec; dialog = "done" },
                             onRemind = { sch ->
                                 val left = sch.kmRemaining(active.currentOdometer)
                                 openReminderDialog(
@@ -387,6 +391,16 @@ private fun GarageApp(vm: GarageViewModel) {
             }
         }
 
+        "done" -> active?.let { v ->
+            doneTarget?.let { s ->
+                val rec = editingRecord
+                ServiceDoneDialog(
+                    schedule = s, initial = rec, defaultOdometer = v.currentOdometer, onDismiss = { dialog = null },
+                    onSave = { date, odo, cost, note -> vm.saveServiceRecord(s, rec, date, odo, cost, note) },
+                    onDelete = rec?.let { r -> { vm.deleteServiceRecord(r); dialog = null } },
+                )
+            }
+        }
         "tireSet" -> TireSetDialog(editingSet, isFirst = tireSets.isEmpty(), onDismiss = { dialog = null }) { name, season, brand, size, km, mountNow ->
             val editing = editingSet
             if (editing != null) vm.updateTireSet(editing.copy(name = name, season = season, brand = brand, size = size, kmBefore = km))
