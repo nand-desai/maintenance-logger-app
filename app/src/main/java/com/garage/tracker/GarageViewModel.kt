@@ -64,6 +64,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { v -> v?.let { db.brakeDao().observe(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val notes: StateFlow<List<CarNote>> = activeVehicle
+        .flatMapLatest { v -> v?.let { db.noteDao().observe(it.vehicleId) } ?: flowOf(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val insurancePlan: StateFlow<RecurringExpense?> = activeVehicle
         .flatMapLatest { v -> v?.let { db.recurringDao().observe(it.vehicleId, Categories.INSURANCE) } ?: flowOf(null) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -208,6 +212,16 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         if (cost > 0) db.expenseDao().upsert(ExpenseLog(id, vehicleId, date, odometer, Categories.SERVICE, cost, 0.0))
         else db.expenseDao().deleteById(id)
     }
+
+    // ---- Notes for the mechanic ----------------------------------------------------------------
+
+    fun saveNote(existing: CarNote?, tag: String, text: String, date: String, odometer: Int) = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        db.noteDao().upsert(CarNote(existing?.noteId ?: newId("NOTE"), v.vehicleId, date, odometer, tag, text, existing?.done ?: false))
+    }
+
+    fun toggleNoteDone(n: CarNote) = viewModelScope.launch { db.noteDao().upsert(n.copy(done = !n.done)) }
+    fun deleteNote(n: CarNote) = viewModelScope.launch { db.noteDao().delete(n) }
 
     // ---- Brakes --------------------------------------------------------------------------------
 

@@ -139,6 +139,28 @@ data class RecurringExpense(
     val active: Boolean,
 )
 
+/** Something to mention to the mechanic: a noise, a vibration, a warning light... */
+@Entity(
+    tableName = "car_notes",
+    foreignKeys = [ForeignKey(Vehicle::class, ["vehicleId"], ["vehicleId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("vehicleId")],
+)
+data class CarNote(
+    @PrimaryKey val noteId: String,
+    val vehicleId: String,
+    val date: String,
+    val odometer: Int,
+    val tag: String,
+    val text: String,
+    /** True once it has been mentioned to the mechanic. */
+    val done: Boolean,
+)
+
+object NoteTags {
+    const val GENERAL = "General"
+    val all = listOf("Noise", "Vibration", "Leak", "Smell", "Warning light", "Handling", GENERAL)
+}
+
 object Categories {
     const val FUEL = "Fuel"
     const val SERVICE = "Service"

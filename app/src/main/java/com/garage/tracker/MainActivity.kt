@@ -73,6 +73,22 @@ private fun shareBackup(context: Context, file: File) {
     context.startActivity(Intent.createChooser(send, "Save backup to…"))
 }
 
+/** Sends the open notes as plain text, ready to show or message to a mechanic. */
+private fun shareNotes(context: Context, car: String, odometer: Int, open: List<CarNote>) {
+    val body = buildString {
+        appendLine("Things to mention about my $car (${"%,d".format(odometer)} km):")
+        open.sortedBy { it.date }.forEach { n ->
+            appendLine("• ${if (n.tag == NoteTags.GENERAL) "" else "[${n.tag}] "}${n.text} (${n.date}, ${"%,d".format(n.odometer)} km)")
+        }
+    }
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "Notes for my mechanic")
+        putExtra(Intent.EXTRA_TEXT, body)
+    }
+    context.startActivity(Intent.createChooser(send, "Share notes"))
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GarageApp(vm: GarageViewModel) {
@@ -86,6 +102,7 @@ private fun GarageApp(vm: GarageViewModel) {
     val tireSets by vm.tireSets.collectAsStateWithLifecycle()
     val tireEvents by vm.tireEvents.collectAsStateWithLifecycle()
     val brakeEntries by vm.brakeEntries.collectAsStateWithLifecycle()
+    val notes by vm.notes.collectAsStateWithLifecycle()
     val insurancePlan by vm.insurancePlan.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -101,6 +118,7 @@ private fun GarageApp(vm: GarageViewModel) {
     var editingWash by remember { mutableStateOf<ExpenseLog?>(null) }
     var editingSet by remember { mutableStateOf<TireSet?>(null) }
     var editingEvent by remember { mutableStateOf<TireEvent?>(null) }
+    var editingNote by remember { mutableStateOf<CarNote?>(null) }
     var editingBrake by remember { mutableStateOf<BrakeEntry?>(null) }
     var setTarget by remember { mutableStateOf<TireSet?>(null) }
     var eventPreset by remember { mutableStateOf<Pair<String?, String?>>(null to null) }
@@ -165,7 +183,7 @@ private fun GarageApp(vm: GarageViewModel) {
         else -> {
             val titles = mapOf(
                 "home" to "My Garage", "maintenance" to "Maintenance", "expenses" to "Expenses", "tires" to "Tires",
-                "brakes" to "Brakes", "wash" to "Car wash", "reminders" to "Reminders", "settings" to "Settings",
+                "brakes" to "Brakes", "wash" to "Car wash", "notes" to "Notes", "reminders" to "Reminders", "settings" to "Settings",
             )
             val isRoot = screen == "home" || screen == "reminders" || screen == "settings"
             BackHandler(enabled = screen != "home") { screen = "home" }
@@ -212,6 +230,10 @@ private fun GarageApp(vm: GarageViewModel) {
                             onClick = { editingBrake = null; brakePreset = null; dialog = "brake" },
                             icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log brake pads") },
                         )
+                        "notes" -> ExtendedFloatingActionButton(
+                            onClick = { editingNote = null; dialog = "note" },
+                            icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add note") },
+                        )
                         "wash" -> ExtendedFloatingActionButton(
                             onClick = { editingWash = null; dialog = "wash" },
                             icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log wash") },
@@ -238,7 +260,7 @@ private fun GarageApp(vm: GarageViewModel) {
                     when (target) {
                         "home" -> HomeScreen(
                             vehicle = active, vehicles = list, schedules = schedules, logs = logs,
-                            tireSets = tireSets, tireEvents = tireEvents, brakes = brakeEntries, reminders = reminders,
+                            tireSets = tireSets, tireEvents = tireEvents, brakes = brakeEntries, reminders = reminders, notes = notes,
                             dueSoonKm = settings.dueSoonKm, photoFile = photo, photoVersion = photoVersion,
                             onSelectVehicle = vm::select,
                             onAddVehicle = { dialog = "addVehicle" },
@@ -289,6 +311,14 @@ private fun GarageApp(vm: GarageViewModel) {
                             onLog = { editingWash = null; dialog = "wash" },
                             onEdit = { editingWash = it; dialog = "wash" },
                             onDelete = vm::deleteExpense,
+                        )
+                        "notes" -> NotesScreen(
+                            notes = notes,
+                            onAdd = { editingNote = null; dialog = "note" },
+                            onEdit = { editingNote = it; dialog = "note" },
+                            onToggle = vm::toggleNoteDone,
+                            onDelete = vm::deleteNote,
+                            onShare = { shareNotes(context, "${active.make} ${active.model}", active.currentOdometer, notes.filter { !it.done }) },
                         )
                         "reminders" -> RemindersScreen(reminders, list, vm::deleteReminder)
                         else -> SettingsScreen(
@@ -393,6 +423,10 @@ private fun GarageApp(vm: GarageViewModel) {
             }
         }
 
+        "note" -> active?.let { v ->
+            val editing = editingNote
+            NoteDialog(editing, v.currentOdometer, { dialog = null }) { tag, text, date, odo -> vm.saveNote(editing, tag, text, date, odo) }
+        }
         "reminder" -> AddReminderDialog(settings.reminderHour, prefill.first, prefill.second, { dialog = null }, vm::addReminder)
         "deleteVehicle" -> active?.let { v ->
             AlertDialog(

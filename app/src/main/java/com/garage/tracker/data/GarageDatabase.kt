@@ -10,9 +10,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         Vehicle::class, MaintenanceSchedule::class, ExpenseLog::class, Reminder::class,
-        TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class,
+        TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class, CarNote::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class GarageDatabase : RoomDatabase() {
@@ -23,6 +23,7 @@ abstract class GarageDatabase : RoomDatabase() {
     abstract fun tireDao(): TireDao
     abstract fun brakeDao(): BrakeDao
     abstract fun recurringDao(): RecurringDao
+    abstract fun noteDao(): NoteDao
 
     companion object {
         @Volatile private var instance: GarageDatabase? = null
@@ -30,7 +31,7 @@ abstract class GarageDatabase : RoomDatabase() {
         fun get(context: Context): GarageDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, GarageDatabase::class.java, "garage.db",
-            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).fallbackToDestructiveMigration().build().also { instance = it }
+            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).fallbackToDestructiveMigration().build().also { instance = it }
         }
     }
 }
@@ -85,5 +86,17 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
 private val MIGRATION_4_5 = object : Migration(4, 5) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE `expense_logs` ADD COLUMN `note` TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+/** Adds the notes / observations table. */
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `car_notes` (`noteId` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, `date` TEXT NOT NULL, " +
+                "`odometer` INTEGER NOT NULL, `tag` TEXT NOT NULL, `text` TEXT NOT NULL, `done` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`noteId`), FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`vehicleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_car_notes_vehicleId` ON `car_notes` (`vehicleId`)")
     }
 }

@@ -22,7 +22,8 @@ interface VehicleDao {
     @Query(
         "SELECT (SELECT COUNT(*) FROM vehicles) + (SELECT COUNT(*) FROM maintenance_schedules) + " +
             "(SELECT COUNT(*) FROM expense_logs) + (SELECT COUNT(*) FROM reminders) + (SELECT COUNT(*) FROM tire_sets) + " +
-            "(SELECT COUNT(*) FROM tire_events) + (SELECT COUNT(*) FROM brake_entries) + (SELECT COUNT(*) FROM recurring_expenses)",
+            "(SELECT COUNT(*) FROM tire_events) + (SELECT COUNT(*) FROM brake_entries) + (SELECT COUNT(*) FROM recurring_expenses) + " +
+            "(SELECT COUNT(*) FROM car_notes)",
     )
     fun changeTick(): Flow<Int>
 
@@ -152,4 +153,19 @@ interface RecurringDao {
 
     @Delete
     suspend fun delete(plan: RecurringExpense)
+}
+
+@Dao
+interface NoteDao {
+    @Query("SELECT * FROM car_notes WHERE vehicleId = :vehicleId ORDER BY date DESC, odometer DESC")
+    fun observe(vehicleId: String): Flow<List<CarNote>>
+
+    @Query("SELECT * FROM car_notes")
+    suspend fun all(): List<CarNote>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(note: CarNote)
+
+    @Delete
+    suspend fun delete(note: CarNote)
 }

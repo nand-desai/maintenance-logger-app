@@ -28,6 +28,7 @@ Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Ca
 - **Brakes** (its own section): log brake pad thickness in mm for the front and rear, and when new pads go on. Gauges turn green, amber and coral, with an estimate of the km left before ~3 mm.
 - **Monthly insurance:** the *Insurance premium* card at the top of Expenses (also under Settings). Set the amount and the payment date and Carlo adds it to your expenses every month by itself, including any months that passed while the app was closed.
 - **Edit anything you logged:** expenses, car washes, tire events, brake entries and services all have an Edit button when you open their card.
+- **Notes:** a place for anything to raise with your mechanic (a noise, vibration, leak, smell, warning light). Tag it, tick it off once mentioned, and share the open list as text.
 - **Reminders:** schedule a notification for any date and time, or tap *Remind me* on a maintenance card to pre-fill one. Reminders survive reboots.
 - **Dark mode:** Settings → Appearance: System, Light or Dark.
 - **Your own colours:** in the vehicle form, the last colour swatch (the rainbow one) opens a colour picker. Save a colour to "my colours" and it appears as a swatch for every vehicle. Long-press a saved colour to remove it.

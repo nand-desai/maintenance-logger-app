@@ -13,11 +13,11 @@ object Backup {
 
     data class Counts(
         val vehicles: Int, val schedules: Int, val expenses: Int, val reminders: Int,
-        val tireSets: Int = 0, val tireEvents: Int = 0, val brakeEntries: Int = 0,
+        val tireSets: Int = 0, val tireEvents: Int = 0, val brakeEntries: Int = 0, val notes: Int = 0,
     ) {
         override fun toString() =
             "$vehicles vehicles, $schedules services, $expenses expenses, $reminders reminders, " +
-                "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries"
+                "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries, $notes notes"
     }
 
     suspend fun toJson(db: GarageDatabase, settings: JSONObject? = null): String {
@@ -59,6 +59,10 @@ object Backup {
             JSONObject().put("entry_id", it.entryId).put("vehicle_id", it.vehicleId).put("date", it.date)
                 .put("odometer", it.odometer).put("type", it.type).put("front_mm", it.frontMm ?: JSONObject.NULL)
                 .put("rear_mm", it.rearMm ?: JSONObject.NULL).put("cost", it.cost).put("note", it.note)
+        }))
+        root.put("car_notes", JSONArray(db.noteDao().all().map {
+            JSONObject().put("note_id", it.noteId).put("vehicle_id", it.vehicleId).put("date", it.date)
+                .put("odometer", it.odometer).put("tag", it.tag).put("text", it.text).put("done", it.done)
         }))
         root.put("recurring_expenses", JSONArray(db.recurringDao().all().map {
             JSONObject().put("recurring_id", it.recurringId).put("vehicle_id", it.vehicleId).put("category", it.category)
@@ -108,6 +112,10 @@ object Backup {
             BrakeEntry(it.getString("entry_id"), it.getString("vehicle_id"), it.getString("date"), it.getInt("odometer"),
                 it.getString("type"), it.optMm("front_mm"), it.optMm("rear_mm"), it.optDouble("cost", 0.0), it.optString("note", ""))
         }
+        val notes = root.optJSONArray("car_notes").objects().map {
+            CarNote(it.getString("note_id"), it.getString("vehicle_id"), it.getString("date"), it.getInt("odometer"),
+                it.optString("tag", NoteTags.GENERAL), it.getString("text"), it.optBoolean("done", false))
+        }
         val recurring = root.optJSONArray("recurring_expenses").objects().map {
             RecurringExpense(it.getString("recurring_id"), it.getString("vehicle_id"), it.getString("category"),
                 it.getDouble("amount"), it.getInt("day_of_month"), it.getString("next_due"), it.optBoolean("active", true))
@@ -121,8 +129,9 @@ object Backup {
             tireEvents.forEach { db.tireDao().upsertEvent(it) }
             brakes.forEach { db.brakeDao().upsert(it) }
             recurring.forEach { db.recurringDao().upsert(it) }
+            notes.forEach { db.noteDao().upsert(it) }
         }
-        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size, brakes.size)
+        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size, brakes.size, notes.size)
     }
 
     private fun JSONObject.optMm(key: String): Double? = if (isNull(key) || !has(key)) null else getDouble(key)

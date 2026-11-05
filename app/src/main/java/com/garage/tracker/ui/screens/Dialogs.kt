@@ -293,8 +293,8 @@ fun InsurancePlanDialog(
 }
 
 private val serviceSuggestions = listOf(
-    "Engine oil & filter" to 10000, "Tire rotation" to 10000, "Brake fluid" to 40000,
-    "Air filter" to 30000, "Coolant" to 60000, "Brake pads" to 50000,
+    "Engine oil & filter" to 10000, "Brake fluid" to 40000,
+    "Air filter" to 30000, "Coolant" to 60000, "Cabin filter" to 20000,
 )
 
 /** Add a maintenance item, or edit one when [initial] is given. */

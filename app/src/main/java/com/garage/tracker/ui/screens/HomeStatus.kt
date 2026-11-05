@@ -118,6 +118,7 @@ fun buildAlerts(
 fun buildTiles(
     vehicle: Vehicle, schedules: List<MaintenanceSchedule>, logs: List<ExpenseLog>, dueSoonKm: Int,
     tireSets: List<TireSet>, tireEvents: List<TireEvent>, brakes: List<BrakeEntry>, reminders: List<Reminder>,
+    notes: List<CarNote>,
 ): List<TileInfo> {
     val odo = vehicle.currentOdometer
 
@@ -158,12 +159,15 @@ fun buildTiles(
     val now = System.currentTimeMillis()
     val upcoming = reminders.filter { it.triggerAt > now }.minByOrNull { it.triggerAt }
 
+    val openNotes = notes.count { !it.done }
+
     return listOf(
         TileInfo("maintenance", "Maintenance", maintStatus, maintLevel, Icons.Default.Build, BrandBlue),
         TileInfo("expenses", "Expenses", if (spent > 0) "${money(spent, 0)} this month" else "Nothing yet this month", Level.Neutral, Icons.Default.DonutLarge, Color(0xFF8B5CF6)),
         TileInfo("tires", "Tires", tireStatus, tireLevel, Icons.Default.TireRepair, Color(0xFF1FA58A)),
         TileInfo("brakes", "Brakes", brakeStatus, brakeLevel, Icons.Default.Album, Color(0xFFE8793B)),
         TileInfo("wash", "Car wash", washSummary(washes), Level.Neutral, Icons.Default.LocalCarWash, Color(0xFF2B8CD6)),
+        TileInfo("notes", "Notes", if (openNotes == 0) "Nothing to mention" else "$openNotes to tell your mechanic", Level.Neutral, Icons.Default.EditNote, Color(0xFFCA9A1B)),
         TileInfo("reminders", "Reminders", upcoming?.let { "${it.title} ${inDays(it.triggerAt)}" } ?: "Nothing scheduled", Level.Neutral, Icons.Default.Notifications, Color(0xFFD6457F)),
     )
 }

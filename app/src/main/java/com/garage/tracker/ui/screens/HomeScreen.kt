@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +43,7 @@ fun HomeScreen(
     tireEvents: List<TireEvent>,
     brakes: List<BrakeEntry>,
     reminders: List<Reminder>,
+    notes: List<CarNote>,
     dueSoonKm: Int,
     photoFile: File?,
     photoVersion: Int,
@@ -56,7 +57,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val alerts = buildAlerts(vehicle, schedules, dueSoonKm, tireSets, tireEvents, brakes)
-    val tiles = buildTiles(vehicle, schedules, logs, dueSoonKm, tireSets, tireEvents, brakes, reminders)
+    val tiles = buildTiles(vehicle, schedules, logs, dueSoonKm, tireSets, tireEvents, brakes, reminders, notes)
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -68,7 +69,11 @@ fun HomeScreen(
         item(span = { GridItemSpan(maxLineSpan) }) { VehiclePhoto(photoFile, photoVersion, onPickPhoto) }
         item(span = { GridItemSpan(maxLineSpan) }) { GarageHeader(vehicle, vehicles, onSelectVehicle, onAddVehicle, onEditOdometer) }
         item(span = { GridItemSpan(maxLineSpan) }) { AttentionBanner(alerts, onOpen) }
-        items(tiles, key = { it.id }) { tile -> HomeTile(tile) { onOpen(tile.id) } }
+        itemsIndexed(
+            tiles, key = { _, t -> t.id },
+            // with an odd number of tiles the last one takes the full width
+            span = { index, _ -> if (index == tiles.lastIndex && tiles.size % 2 == 1) GridItemSpan(maxLineSpan) else GridItemSpan(1) },
+        ) { _, tile -> HomeTile(tile) { onOpen(tile.id) } }
         if (!backupOn) item(span = { GridItemSpan(maxLineSpan) }) {
             SoftCard(onClick = onSetupBackup) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

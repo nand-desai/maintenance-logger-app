@@ -45,7 +45,7 @@ fun MaintenanceScreen(
             item {
                 SoftCard(onClick = onAddSchedule) {
                     Text("Add your first service", fontWeight = FontWeight.SemiBold)
-                    Text("Oil change, tire rotation, brake fluid… Carlo will tell you when each one is due.", color = InkSoft, style = MaterialTheme.typography.bodyMedium)
+                    Text("Oil change, air filter, brake fluid… Carlo will tell you when each one is due.", color = InkSoft, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
