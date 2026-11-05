@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AttachmentsField, useAttachmentDraft } from './attachments'
+import { num, validMoney, validOdometer, validYear } from './numbers'
 import { db, newId, today } from './db'
 import { saveSettings } from './store'
 import { Field, Sheet } from './ui'
@@ -9,7 +10,6 @@ import { runRecurring } from './logic/recurring'
 import { Categories, type CarNote, type ExpenseLog, type MaintenanceSchedule, type RecurringExpense, type Settings, type Vehicle } from './types'
 
 const PRESET_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280']
-const num = (s: string) => (s.trim() === '' ? NaN : Number(s.replace(',', '.')))
 
 /** Add a vehicle, or edit one when [initial] is given. Nothing is pre-filled for a new vehicle. */
 export function VehicleDialog({ initial, settings, onClose, onSaved }: {
@@ -21,7 +21,7 @@ export function VehicleDialog({ initial, settings, onClose, onSaved }: {
   const [odo, setOdo] = useState(initial?.currentOdometer?.toString() ?? '')
   const [color, setColor] = useState(initial?.colorHex ?? PRESET_COLORS[0])
   const palette = [...PRESET_COLORS, ...settings.savedColors.filter((c) => !PRESET_COLORS.includes(c))]
-  const valid = make.trim() && model.trim() && Number.isInteger(num(year)) && Number.isInteger(num(odo)) && num(odo) >= 0
+  const valid = make.trim() && model.trim() && validYear(year) && validOdometer(odo)
 
   const save = async () => {
     const v: Vehicle = {
@@ -70,7 +70,7 @@ export function OdometerDialog({ vehicle, onClose }: { vehicle: Vehicle; onClose
       <Field label="Odometer (km)" value={odo} onChange={setOdo} inputMode="numeric" />
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={!Number.isInteger(num(odo))} onClick={async () => { await db.vehicles.update(vehicle.vehicleId, { currentOdometer: num(odo) }); onClose() }}>Save</button>
+        <button className="btn" disabled={!validOdometer(odo)} onClick={async () => { await db.vehicles.update(vehicle.vehicleId, { currentOdometer: num(odo) }); onClose() }}>Save</button>
       </div>
     </Sheet>
   )
@@ -83,7 +83,7 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
   const [name, setName] = useState(initial?.serviceName ?? '')
   const [interval, setInterval] = useState(initial?.intervalKm?.toString() ?? '')
   const [last, setLast] = useState((initial?.lastDoneOdometer ?? vehicle.currentOdometer).toString())
-  const valid = name.trim() && num(interval) > 0 && Number.isInteger(num(last))
+  const valid = name.trim() && num(interval) > 0 && validOdometer(last)
   return (
     <Sheet title={initial ? 'Edit maintenance item' : 'Add maintenance item'} onClose={onClose}>
       {!initial && (
@@ -125,8 +125,8 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
   const draft = useAttachmentDraft(logId)
   const isFuel = category === Categories.FUEL
   const isOther = category === Categories.OTHER
-  const rate = isFuel && Number.isInteger(num(odo)) ? entryLitresPer100(previousFuelOdometer, num(odo), num(litres) || 0) : null
-  const valid = date && Number.isInteger(num(odo)) && !Number.isNaN(num(cost)) && (!isOther || note.trim())
+  const rate = isFuel && validOdometer(odo) ? entryLitresPer100(previousFuelOdometer, num(odo), num(litres) || 0) : null
+  const valid = date && validOdometer(odo) && validMoney(cost) && (!isOther || note.trim())
 
   const save = async () => {
     await db.expenses.put({
@@ -179,7 +179,7 @@ export function InsuranceDialog({ vehicle, existing, onClose }: { vehicle: Vehic
       <label className="f">{existing ? 'Next payment date' : 'First payment date'}<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
       <div className="small soft">Carlo adds this to your expenses on the same day each month, including any payments from that date up to today.</div>
       <label className="row"><span className="grow">Add automatically</span><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} style={{ width: 22, height: 22 }} /></label>
-      {existing && <button className="btn text danger" onClick={async () => { await db.recurring.delete(existing.recurringId); onClose() }}>Remove monthly insurance</button>}
+      {existing && <button className="btn text danger" onClick={async () => { if (!window.confirm('Stop adding this insurance every month? Payments already added stay.')) return; await db.recurring.delete(existing.recurringId); onClose() }}>Remove monthly insurance</button>}
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
         <button className="btn" disabled={!(num(amount) > 0) || !date} onClick={save}>Save</button>
@@ -198,7 +198,7 @@ export function WashDialog({ vehicle, initial, onClose }: { vehicle: Vehicle; in
       <Field label="Cost (CAD, 0 if free)" value={cost} onChange={setCost} inputMode="decimal" />
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={Number.isNaN(num(cost)) || !date} onClick={async () => {
+        <button className="btn" disabled={!validMoney(cost) || !date} onClick={async () => {
           await db.expenses.put({
             logId: initial?.logId ?? newId('LOG'), vehicleId: vehicle.vehicleId, date, odometer: initial?.odometer ?? vehicle.currentOdometer,
             category: Categories.CAR_WASH, cost: num(cost), fuelLiters: 0, note: '',
@@ -229,7 +229,7 @@ export function NoteDialog({ vehicle, initial, onClose }: { vehicle: Vehicle; in
       <Field label="Odometer (km)" value={odo} onChange={setOdo} inputMode="numeric" />
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={!text.trim() || !Number.isInteger(num(odo))} onClick={async () => {
+        <button className="btn" disabled={!text.trim() || !validOdometer(odo)} onClick={async () => {
           await db.notes.put({
             noteId: initial?.noteId ?? newId('NOTE'), vehicleId: vehicle.vehicleId, date, odometer: num(odo),
             tag, text: text.trim(), done: initial?.done ?? false,

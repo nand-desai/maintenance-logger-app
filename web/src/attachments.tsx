@@ -5,7 +5,7 @@ import type { Attachment, AttachmentOwner } from './types'
 import { Icon } from './ui'
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024
-const MAX_IMAGE_PX = 2000
+const MAX_IMAGE_PX = 1600
 
 /** Photos are shrunk to a JPEG of at most 2000 px; anything else (PDFs...) is kept as it is. */
 export async function prepareFile(file: File): Promise<{ blob: Blob; fileName: string; mime: string }> {
@@ -19,7 +19,7 @@ export async function prepareFile(file: File): Promise<{ blob: Blob; fileName: s
       const ctx = canvas.getContext('2d')!
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
       ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height)
-      const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('encode failed'))), 'image/jpeg', 0.85))
+      const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('encode failed'))), 'image/jpeg', 0.8))
       return { blob, fileName: file.name.replace(/\.[^.]+$/, '') + '.jpg', mime: 'image/jpeg' }
     } catch { /* fall through and keep the original */ }
   }

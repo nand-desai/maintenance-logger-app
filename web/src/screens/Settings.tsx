@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { exportBackup, exportBackupZip, importBackupFile } from '../backup'
 import { db } from '../db'
 import { km } from '../logic/format'
 import { saveSettings } from '../store'
 import { Icon } from '../ui'
 import type { Settings as S, ThemeMode, Vehicle } from '../types'
+
+const fmtBytes = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)} MB` : `${Math.max(0, Math.round(n / 1000))} KB`)
 
 async function shareOrDownload(data: string | Uint8Array, ext: 'zip' | 'json') {
   const name = `carlo-backup-${new Date().toLocaleDateString('en-CA')}.${ext}`
@@ -25,6 +28,15 @@ export function Settings({ settings, vehicle, onToast, onEditVehicle, onOdometer
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [persisted, setPersisted] = useState<boolean | null>(null)
+  const storage = useLiveQuery(async () => {
+    const rows = await db.attachments.toArray()
+    const photos = await db.photos.toArray()
+    const est = await navigator.storage?.estimate?.()
+    return {
+      files: rows.length, filesBytes: rows.reduce((t, r) => t + r.size, 0),
+      photoBytes: photos.reduce((t, p) => t + p.blob.size, 0), used: est?.usage ?? null,
+    }
+  }, [])
   useEffect(() => { navigator.storage?.persisted?.().then(setPersisted) }, [])
 
   const doImport = async (f?: File) => {
@@ -61,7 +73,7 @@ export function Settings({ settings, vehicle, onToast, onEditVehicle, onOdometer
       <div className="card" style={{ display: 'grid', gap: 6 }}>
         <div className="title">Due-soon warning</div>
         <div className="soft small">Services turn amber within {km(settings.dueSoonKm)} of being due</div>
-        <input type="range" min={500} max={5000} step={500} value={settings.dueSoonKm} onChange={(e) => saveSettings({ dueSoonKm: Number(e.target.value) })} />
+        <input type="range" aria-label="Due-soon warning distance in km" min={500} max={5000} step={500} value={settings.dueSoonKm} onChange={(e) => saveSettings({ dueSoonKm: Number(e.target.value) })} />
       </div>
       <div className="card" style={{ display: 'grid', gap: 10 }}>
         <div className="title">Your data</div>
@@ -80,6 +92,16 @@ export function Settings({ settings, vehicle, onToast, onEditVehicle, onOdometer
         )}
         <input ref={fileInput} type="file" accept="application/json,.json,application/zip,.zip" hidden onChange={(e) => { doImport(e.target.files?.[0]); e.target.value = '' }} />
       </div>
+
+      {storage && (
+        <div className="card" style={{ display: 'grid', gap: 4 }}>
+          <div className="title">Storage</div>
+          <div className="detail"><span>Receipts and files</span><span>{storage.files} · {fmtBytes(storage.filesBytes)}</span></div>
+          <div className="detail"><span>Vehicle photos</span><span>{fmtBytes(storage.photoBytes)}</span></div>
+          {storage.used != null && <div className="detail"><span>Total used by Carlo</span><span>{fmtBytes(storage.used)}</span></div>}
+          <div className="soft small">Photos and receipts are shrunk when you add them (1600 px). Deleting an entry deletes its receipts, so nothing is left behind.</div>
+        </div>
+      )}
 
       <h2>{vehicle.make} {vehicle.model}</h2>
       <div className="card" style={{ display: 'grid' }}>

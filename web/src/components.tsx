@@ -22,6 +22,8 @@ export function TireDiagram({ bodyColor, wheelColor, centerIcon, punctures, trea
         const n = punctures[w] ?? 0
         return (
           <g key={w} onClick={() => onWheel(w)} style={{ cursor: 'pointer' }} role="button" aria-label={`${WHEELS[w]} wheel`}>
+            {/* generous invisible tap area around the wheel */}
+            <rect x={x - 10} y={y - 6} width="46" height="66" fill="transparent" />
             <rect x={x} y={y} width="26" height="54" rx="8" fill={wheelColor} stroke="rgba(0,0,0,.18)" strokeWidth="2" />
             <text x={x + 13} y={y + 24} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1F2430" opacity=".75">{w}</text>
             {tread[w] != null && <text x={x + 13} y={y + 39} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1F2430">{tread[w]!.toFixed(1)}</text>}

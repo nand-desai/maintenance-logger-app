@@ -1,3 +1,4 @@
+import { confirmDelete } from '../confirm'
 import { deleteExpense } from '../ops'
 import { money, washSummary } from '../logic/format'
 import { Categories, type ExpenseLog } from '../types'
@@ -22,7 +23,7 @@ export function Wash({ expenses, onLog, onEdit }: { expenses: ExpenseLog[]; onLo
         <div key={w.logId} className="card row">
           <div className="grow"><div className="title">{w.date}</div><div className="soft small">{money(w.cost)}</div></div>
           <button className="icon-btn" aria-label="Edit wash" onClick={() => onEdit(w)}><Icon name="edit" /></button>
-          <button className="icon-btn" aria-label="Delete wash" onClick={() => deleteExpense(w.logId)}><Icon name="trash" /></button>
+          <button className="icon-btn" aria-label="Delete wash" onClick={() => confirmDelete('this wash') && deleteExpense(w.logId)}><Icon name="trash" /></button>
         </div>
       ))}
     </>

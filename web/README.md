@@ -39,7 +39,7 @@ Also: the **?** install help, light/dark/system theme, your own colours, backup 
 with Android, installable PWA with offline support.
 
 **Receipts and attachments:** attach a photo (camera or files) or a PDF to a service, tire entry, brake entry or
-expense. Photos are shrunk to 2000 px; files up to 25 MB. **Back up (zip)** bundles the data, vehicle photos and
+expense. Photos are shrunk to 1600 px; files up to 25 MB. **Back up (zip)** bundles the data, vehicle photos and
 all attachments into one file; import accepts that zip or an old `.json`.
 
 **Reminders on iPhone:** browsers can't schedule alerts while the app is closed, so each reminder has

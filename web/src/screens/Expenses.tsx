@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AttachmentCount, AttachmentList } from '../attachments'
+import { confirmDelete } from '../confirm'
 import { deleteExpense } from '../ops'
 import { CATEGORY_LIST, CHART_COLORS, expenseTitle, summarize } from '../logic/expenses'
 import { km, money } from '../logic/format'
@@ -49,7 +50,7 @@ function ExpenseCard({ l, onEdit }: { l: ExpenseLog; onEdit: () => void }) {
           <AttachmentList ownerId={owner} />
           <div className="actions">
             <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
-            <button className="btn text danger" onClick={() => deleteExpense(l.logId)}><Icon name="trash" size={18} /> Delete</button>
+            <button className="btn text danger" onClick={() => confirmDelete('this entry') && deleteExpense(l.logId)}><Icon name="trash" size={18} /> Delete</button>
           </div>
         </div>
       )}
@@ -63,6 +64,8 @@ export function Expenses({ vehicle, expenses, insurance, onAdd, onEdit, onInsura
 }) {
   const [totalOpen, setTotalOpen] = useState(false)
   const [donutOpen, setDonutOpen] = useState(false)
+  const [filter, setFilter] = useState<string | null>(null)
+  const [shown, setShown] = useState(50)
   const s = summarize(expenses, vehicle.currentOdometer)
   const values = CATEGORY_LIST.map((c) => s.byCategory[c] ?? 0)
   return (
@@ -112,10 +115,26 @@ export function Expenses({ vehicle, expenses, insurance, onAdd, onEdit, onInsura
       </button>
 
       <h2>History</h2>
+      {expenses.length > 0 && (
+        <div className="chips">
+          <button className={`chip ${filter == null ? 'on' : ''}`} onClick={() => { setFilter(null); setShown(50) }}>All</button>
+          {CATEGORY_LIST.filter((c) => (s.byCategory[c] ?? 0) > 0 || expenses.some((e) => e.category === c)).map((c) => (
+            <button key={c} className={`chip ${filter === c ? 'on' : ''}`} onClick={() => { setFilter(c); setShown(50) }}>{c}</button>
+          ))}
+        </div>
+      )}
       {expenses.length === 0 && (
         <div className="card"><div className="title">No entries yet</div><div className="soft small">Tap “Add entry” to log fuel, a service, insurance or an upgrade.</div></div>
       )}
-      {expenses.map((l) => <ExpenseCard key={l.logId} l={l} onEdit={() => onEdit(l)} />)}
+      {(() => {
+        const list = filter ? expenses.filter((e) => e.category === filter) : expenses
+        return (
+          <>
+            {list.slice(0, shown).map((l) => <ExpenseCard key={l.logId} l={l} onEdit={() => onEdit(l)} />)}
+            {list.length > shown && <button className="btn outline block" onClick={() => setShown(shown + 50)}>Show 50 more ({list.length - shown} left)</button>}
+          </>
+        )
+      })()}
       <button className="btn fab" onClick={onAdd}><Icon name="add" /> Add entry</button>
     </>
   )

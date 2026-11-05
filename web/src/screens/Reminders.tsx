@@ -1,3 +1,4 @@
+import { confirmDelete } from '../confirm'
 import { db } from '../db'
 import { Icon, Pill } from '../ui'
 import type { Reminder } from '../types'
@@ -38,7 +39,7 @@ export function Reminders({ reminders, onAdd, onEdit }: { reminders: Reminder[];
         <div className="grow"><div className="title" style={{ color: isPast ? 'var(--ink-soft)' : undefined }}>{r.title}</div>
           {r.note && <div className="soft small">{r.note}</div>}</div>
         <button className="icon-btn" aria-label="Edit reminder" onClick={() => onEdit(r)}><Icon name="edit" /></button>
-        <button className="icon-btn" aria-label="Delete reminder" onClick={() => db.reminders.delete(r.reminderId)}><Icon name="trash" /></button>
+        <button className="icon-btn" aria-label="Delete reminder" onClick={() => confirmDelete('this reminder') && db.reminders.delete(r.reminderId)}><Icon name="trash" /></button>
       </div>
       <div className="row"><Pill level={isPast ? 'neutral' : 'good'}>{when(r.triggerAt)}</Pill>
         {!isPast && <button className="btn text" onClick={() => addToCalendar(r)}><Icon name="calendar" size={18} /> Add to calendar</button>}</div>

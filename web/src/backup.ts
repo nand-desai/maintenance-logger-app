@@ -37,7 +37,9 @@ export interface ImportCounts { attachments?: number; vehicles: number; services
 /** Merges a backup (from this app or the Android app) into the local database. */
 /** [files] are the other entries of a zip backup (attachments/…, photos/…), if any. */
 export async function importBackup(text: string, files?: Record<string, Uint8Array>): Promise<ImportCounts> {
-  const root = JSON.parse(text) as Row
+  let root: Row
+  try { root = JSON.parse(text) as Row } catch { throw new Error("That file isn't a Carlo backup (it isn't valid JSON)") }
+  if (typeof root !== 'object' || root === null) throw new Error("That file isn't a Carlo backup")
   if (!ACCEPTED_APPS.includes(root.app)) throw new Error("This isn't a Carlo backup file")
   if ((root.version ?? 1) < 2) throw new Error("This backup uses miles/gallons and can't be imported")
 
@@ -95,7 +97,8 @@ export async function exportBackupZip(): Promise<Uint8Array> {
 export async function importBackupFile(file: File): Promise<ImportCounts> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) { // "PK": a zip
-    const entries = unzipSync(bytes)
+    let entries: Record<string, Uint8Array>
+    try { entries = unzipSync(bytes) } catch { throw new Error('That zip file is damaged or incomplete') }
     if (!entries['backup.json']) throw new Error("This zip doesn't contain a backup.json")
     return importBackup(strFromU8(entries['backup.json']), entries)
   }

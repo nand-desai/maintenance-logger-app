@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { confirmDelete } from '../confirm'
 import { db } from '../db'
 import { km } from '../logic/format'
 import { Icon } from '../ui'
@@ -20,7 +21,7 @@ function NoteCard({ n, onEdit }: { n: CarNote; onEdit: () => void }) {
       {open && (
         <div className="actions" onClick={(e) => e.stopPropagation()}>
           <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
-          <button className="btn text danger" onClick={() => db.notes.delete(n.noteId)}><Icon name="trash" size={18} /> Delete</button>
+          <button className="btn text danger" onClick={() => confirmDelete('this note') && db.notes.delete(n.noteId)}><Icon name="trash" size={18} /> Delete</button>
         </div>
       )}
     </div>

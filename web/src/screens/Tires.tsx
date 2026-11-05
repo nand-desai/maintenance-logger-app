@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AttachmentCount, AttachmentList } from '../attachments'
+import { confirmDelete } from '../confirm'
 import { deleteTireEvent } from '../ops'
 import { km, mm, money } from '../logic/format'
 import { CARE_KM, WHEELS, TREAD_REPLACE_MM, kmDriven, lastRotation, latestOfType, latestTread, swapDue, treadWear, treadFor, worstTread, type Wheel } from '../logic/tires'
@@ -41,7 +42,7 @@ function EventCard({ e, setName, onEdit }: { e: TireEvent; setName?: string; onE
           <AttachmentList ownerId={e.eventId} />
           <div className="actions">
             <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
-            <button className="btn text danger" onClick={() => deleteTireEvent(e)}><Icon name="trash" size={18} /> Delete</button>
+            <button className="btn text danger" onClick={() => confirmDelete('this tire entry') && deleteTireEvent(e)}><Icon name="trash" size={18} /> Delete</button>
           </div>
         </div>
       )}

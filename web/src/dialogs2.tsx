@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { AttachmentsField, useAttachmentDraft } from './attachments'
+import { confirmDelete } from './confirm'
+import { num, validMm, validMoney, validOdometer } from './numbers'
 import { db, newId, today } from './db'
 import { deleteServiceRecord, mountSet, saveBrakeEntry, saveServiceRecord, saveTireEvent } from './ops'
 import { WHEELS, type Wheel } from './logic/tires'
 import { Field, Sheet } from './ui'
 import { Seasons, TireEventType, type BrakeEntry, type MaintenanceRecord, type MaintenanceSchedule, type Reminder, type TireEvent, type TireSet, type Vehicle } from './types'
 
-const num = (s: string) => (s.trim() === '' ? NaN : Number(s.replace(',', '.')))
 const DateField = ({ value, onChange, label = 'Date' }: { value: string; onChange: (v: string) => void; label?: string }) => (
   <label className="f">{label}<input type="date" value={value} onChange={(e) => onChange(e.target.value)} /></label>
 )
@@ -21,7 +22,7 @@ export function ServiceDoneDialog({ vehicle, schedule, initial, onClose }: {
   const [note, setNote] = useState(initial?.note ?? '')
   const [recordId] = useState(initial?.recordId ?? newId('MNT'))
   const draft = useAttachmentDraft(recordId)
-  const valid = date && Number.isInteger(num(odo)) && (cost.trim() === '' || !Number.isNaN(num(cost)))
+  const valid = date && validOdometer(odo) && validMoney(cost, true)
   return (
     <Sheet title={initial ? `Edit · ${schedule.serviceName}` : `Done · ${schedule.serviceName}`} onClose={onClose}>
       <DateField value={date} onChange={setDate} />
@@ -33,7 +34,7 @@ export function ServiceDoneDialog({ vehicle, schedule, initial, onClose }: {
       <AttachmentsField draft={draft} />
       <div className="small soft">A cost is added to your Expenses automatically.</div>
       <div className="actions">
-        {initial && <button className="btn text danger" onClick={async () => { await deleteServiceRecord(initial); onClose() }}>Delete</button>}
+        {initial && <button className="btn text danger" onClick={async () => { if (!confirmDelete('this record')) return; await deleteServiceRecord(initial); onClose() }}>Delete</button>}
         <button className="btn text" onClick={onClose}>Cancel</button>
         <button className="btn" disabled={!valid} onClick={async () => {
           await saveServiceRecord(vehicle, schedule, { recordId, date, odometer: num(odo), cost: num(cost) || 0, note: note.trim() })
@@ -53,7 +54,7 @@ export function TireSetDialog({ vehicle, initial, isFirst, onClose }: { vehicle:
   const [size, setSize] = useState(initial?.size ?? '')
   const [km, setKm] = useState(initial?.kmBefore ? initial.kmBefore.toString() : '')
   const [mountNow, setMountNow] = useState(isFirst)
-  const valid = season && name.trim() && (km.trim() === '' || Number.isInteger(num(km)))
+  const valid = season && name.trim() && (km.trim() === '' || validOdometer(km))
   return (
     <Sheet title={initial ? 'Edit tire set' : 'Add tire set'} onClose={onClose}>
       <div className="small soft">Season</div>
@@ -101,7 +102,7 @@ export function SwapDialog({ vehicle, candidates, preselected, onClose }: { vehi
       <Field label="Note (optional)" value={note} onChange={setNote} />
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={!target || !Number.isInteger(num(odo)) || (cost.trim() !== '' && Number.isNaN(num(cost)))} onClick={async () => {
+        <button className="btn" disabled={!target || !validOdometer(odo) || !validMoney(cost, true)} onClick={async () => {
           await mountSet(vehicle, target!, { odometer: num(odo), date, cost: num(cost) || 0, note: note.trim() })
           onClose()
         }}>Swap</button>
@@ -128,9 +129,9 @@ export function TireEventDialog({ vehicle, initial, preset, mountedSetId, onClos
     FL: initial?.treadFl?.toString() ?? '', FR: initial?.treadFr?.toString() ?? '', RL: initial?.treadRl?.toString() ?? '', RR: initial?.treadRr?.toString() ?? '',
   })
   const isSwap = type === TireEventType.SWAP, isPuncture = type === TireEventType.PUNCTURE, isTread = type === TireEventType.TREAD
-  const anyTread = (Object.keys(WHEELS) as Wheel[]).some((w) => tread[w].trim() !== '' && !Number.isNaN(num(tread[w])))
-  const treadsOk = (Object.keys(WHEELS) as Wheel[]).every((w) => tread[w].trim() === '' || !Number.isNaN(num(tread[w])))
-  const valid = type && Number.isInteger(num(odo)) && (!isPuncture || wheel) && (!isTread || (anyTread && treadsOk)) && (isTread || cost.trim() === '' || !Number.isNaN(num(cost)))
+  const anyTread = (Object.keys(WHEELS) as Wheel[]).some((w) => tread[w].trim() !== '' && validMm(tread[w]))
+  const treadsOk = (Object.keys(WHEELS) as Wheel[]).every((w) => tread[w].trim() === '' || validMm(tread[w]))
+  const valid = type && validOdometer(odo) && (!isPuncture || wheel) && (!isTread || (anyTread && treadsOk)) && (isTread || validMoney(cost, true))
 
   return (
     <Sheet title={initial ? 'Edit tire event' : 'Log tire event'} onClose={onClose}>
@@ -208,7 +209,7 @@ export function BrakeDialog({ vehicle, initial, presetType, onClose }: { vehicle
       <div className="small soft">A cost is added to your Expenses automatically.</div>
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={!type || !Number.isInteger(num(odo)) || !mmOk || (cost.trim() !== '' && Number.isNaN(num(cost)))} onClick={async () => {
+        <button className="btn" disabled={!type || !validOdometer(odo) || !mmOk || !validMoney(cost, true)} onClick={async () => {
           await saveBrakeEntry(vehicle, initial, {
             type: type!, date, odometer: num(odo), frontMm: front.trim() === '' ? null : f, rearMm: rear.trim() === '' ? null : r,
             cost: num(cost) || 0, note: note.trim(),

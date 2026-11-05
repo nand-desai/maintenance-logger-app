@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AttachmentCount, AttachmentList } from '../attachments'
+import { confirmDelete } from '../confirm'
 import { deleteBrakeEntry } from '../ops'
 import { km, mm, money } from '../logic/format'
 import { BRAKE_NEW_MM, BRAKE_REPLACE_MM, brakeKmLeft, latestBrake } from '../logic/tires'
@@ -53,7 +54,7 @@ function BrakeCard({ e, onEdit }: { e: BrakeEntry; onEdit: () => void }) {
           <AttachmentList ownerId={e.entryId} />
           <div className="actions">
             <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
-            <button className="btn text danger" onClick={() => deleteBrakeEntry(e)}><Icon name="trash" size={18} /> Delete</button>
+            <button className="btn text danger" onClick={() => confirmDelete('this brake entry') && deleteBrakeEntry(e)}><Icon name="trash" size={18} /> Delete</button>
           </div>
         </div>
       )}
