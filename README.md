@@ -16,9 +16,12 @@ It is a debug-signed build for personal use. It is not a Play Store release.
 
 ## Features
 
-- **Garage:** switch between vehicles, bump the odometer with `+500 mi`, and see an interactive 3D model of your car (load your own `.glb` from your phone).
+Everything is metric (km, litres, L/100 km) and money is in Canadian dollars.
+
+
+- **Garage:** switch between vehicles, bump the odometer with `+100 km`, and see an interactive 3D model of your car (load your own `.glb` from your phone).
 - **Health at a glance:** a status pill (green / amber / coral) and a progress card for every maintenance item.
-- **Expenses:** lifetime cost, cost per mile, MPG, a category donut chart and a full history.
+- **Expenses:** lifetime cost, cost per km, fuel use (L/100 km), a category donut chart and a full history.
 - **Reminders:** schedule a notification for any date and time, or tap the bell on a maintenance card to pre-fill one. Reminders survive reboots.
 - **Backup and restore:** menu → *Back up (share JSON)* opens the Android share sheet, so you can send the file to Drive, Dropbox, email and so on. *Import backup* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept.
 

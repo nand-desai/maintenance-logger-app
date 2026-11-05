@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.garage.tracker.data.Categories
-import com.garage.tracker.data.entryMpg
+import com.garage.tracker.data.entryLitresPer100Km
 import android.text.format.DateFormat
 import androidx.compose.ui.platform.LocalContext
 import java.time.*
@@ -27,19 +27,19 @@ fun AddEntryDialog(
     defaultOdometer: Int,
     previousFuelOdometer: Int?,
     onDismiss: () -> Unit,
-    onSave: (date: String, odometer: Int, category: String, cost: Double, gallons: Double) -> Unit,
+    onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double) -> Unit,
 ) {
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
     var odo by remember { mutableStateOf(defaultOdometer.toString()) }
     var category by remember { mutableStateOf(Categories.FUEL) }
     var cost by remember { mutableStateOf("") }
-    var gallons by remember { mutableStateOf("") }
+    var litres by remember { mutableStateOf("") }
 
     val validDate = runCatching { LocalDate.parse(date) }.isSuccess
     val odoV = odo.toIntOrNull()
     val costV = cost.toDoubleOrNull()
-    val gal = gallons.toDoubleOrNull() ?: 0.0
-    val mpg = if (category == Categories.FUEL && odoV != null) entryMpg(previousFuelOdometer, odoV, gal) else null
+    val fuel = litres.toDoubleOrNull() ?: 0.0
+    val consumption = if (category == Categories.FUEL && odoV != null) entryLitresPer100Km(previousFuelOdometer, odoV, fuel) else null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -47,7 +47,7 @@ fun AddEntryDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Field(date, { date = it }, "Date (YYYY-MM-DD)")
-                Field(odo, { odo = it }, "Odometer (mi)", num)
+                Field(odo, { odo = it }, "Odometer (km)", num)
                 var menu by remember { mutableStateOf(false) }
                 Box {
                     OutlinedButton(onClick = { menu = true }, Modifier.fillMaxWidth()) { Text("Category: $category") }
@@ -55,17 +55,17 @@ fun AddEntryDialog(
                         Categories.all.forEach { c -> DropdownMenuItem(text = { Text(c) }, onClick = { category = c; menu = false }) }
                     }
                 }
-                Field(cost, { cost = it }, "Cost ($)", dec)
+                Field(cost, { cost = it }, "Cost (CAD)", dec)
                 if (category == Categories.FUEL) {
-                    Field(gallons, { gallons = it }, "Fuel (gallons)", dec)
-                    mpg?.let { Text("≈ %.1f MPG since last fill-up".format(it), style = MaterialTheme.typography.bodySmall) }
+                    Field(litres, { litres = it }, "Fuel (litres)", dec)
+                    consumption?.let { Text("≈ %.1f L/100 km since last fill-up".format(it), style = MaterialTheme.typography.bodySmall) }
                 }
             }
         },
         confirmButton = {
             TextButton(
                 enabled = validDate && odoV != null && costV != null,
-                onClick = { onSave(date, odoV!!, category, costV!!, if (category == Categories.FUEL) gal else 0.0); onDismiss() },
+                onClick = { onSave(date, odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
@@ -87,7 +87,7 @@ fun AddVehicleDialog(onDismiss: () -> Unit, onSave: (String, String, Int, Int, S
                 Field(make, { make = it }, "Make")
                 Field(model, { model = it }, "Model / trim")
                 Field(year, { year = it }, "Year", num)
-                Field(odo, { odo = it }, "Current odometer (mi)", num)
+                Field(odo, { odo = it }, "Current odometer (km)", num)
                 Field(color, { color = it }, "Colour (hex)")
             }
         },
@@ -104,7 +104,7 @@ fun AddVehicleDialog(onDismiss: () -> Unit, onSave: (String, String, Int, Int, S
 @Composable
 fun AddScheduleDialog(currentOdometer: Int, onDismiss: () -> Unit, onSave: (String, Int, Int) -> Unit) {
     var name by remember { mutableStateOf("") }
-    var interval by remember { mutableStateOf("5000") }
+    var interval by remember { mutableStateOf("10000") }
     var last by remember { mutableStateOf(currentOdometer.toString()) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -112,8 +112,8 @@ fun AddScheduleDialog(currentOdometer: Int, onDismiss: () -> Unit, onSave: (Stri
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Field(name, { name = it }, "Service (e.g. Engine Oil & Filter)")
-                Field(interval, { interval = it }, "Interval (mi)", num)
-                Field(last, { last = it }, "Last done at (mi)", num)
+                Field(interval, { interval = it }, "Interval (km)", num)
+                Field(last, { last = it }, "Last done at (km)", num)
             }
         },
         confirmButton = {

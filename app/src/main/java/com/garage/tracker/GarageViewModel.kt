@@ -80,10 +80,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun updateSchedule(s: MaintenanceSchedule) = viewModelScope.launch { db.scheduleDao().upsert(s) }
     fun deleteSchedule(s: MaintenanceSchedule) = viewModelScope.launch { db.scheduleDao().delete(s) }
 
-    fun addExpense(date: String, odometer: Int, category: String, cost: Double, gallons: Double) =
+    fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double) =
         viewModelScope.launch {
             val v = activeVehicle.value ?: return@launch
-            db.expenseDao().upsert(ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, gallons))
+            db.expenseDao().upsert(ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, litres))
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
         }
 
@@ -173,11 +173,11 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun clearMessage() { _message.value = null }
 
     private suspend fun seedSample() {
-        val v = Vehicle("CAR_001", "Volkswagen", "Golf TSI", 2016, 58400, "#3B82F6")
+        val v = Vehicle("CAR_001", "Volkswagen", "Golf TSI", 2016, 94000, "#3B82F6")
         db.vehicleDao().upsert(v)
-        db.scheduleDao().upsert(MaintenanceSchedule("SCH_001", v.vehicleId, "Engine Oil & Filter (5W-40)", 5000, 54000))
-        db.scheduleDao().upsert(MaintenanceSchedule("SCH_002", v.vehicleId, "Tire Rotation", 6000, 52000))
-        db.scheduleDao().upsert(MaintenanceSchedule("SCH_003", v.vehicleId, "Brake Fluid", 20000, 40000))
+        db.scheduleDao().upsert(MaintenanceSchedule("SCH_001", v.vehicleId, "Engine Oil & Filter (5W-40)", 10000, 88000))
+        db.scheduleDao().upsert(MaintenanceSchedule("SCH_002", v.vehicleId, "Tire Rotation", 10000, 85000))
+        db.scheduleDao().upsert(MaintenanceSchedule("SCH_003", v.vehicleId, "Brake Fluid", 40000, 60000))
     }
 
     private companion object { const val MAX_MODEL_BYTES = 50L * 1024 * 1024 }

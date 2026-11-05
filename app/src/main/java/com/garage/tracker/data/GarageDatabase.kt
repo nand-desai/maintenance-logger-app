@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [Vehicle::class, MaintenanceSchedule::class, ExpenseLog::class, Reminder::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class GarageDatabase : RoomDatabase() {
@@ -22,7 +22,7 @@ abstract class GarageDatabase : RoomDatabase() {
         fun get(context: Context): GarageDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, GarageDatabase::class.java, "garage.db",
-            ).build().also { instance = it }
+            ).fallbackToDestructiveMigration().build().also { instance = it }
         }
     }
 }

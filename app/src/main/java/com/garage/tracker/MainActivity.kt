@@ -23,7 +23,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.garage.tracker.data.Categories
-import com.garage.tracker.data.milesRemaining
+import com.garage.tracker.data.kmRemaining
 import com.garage.tracker.notifications.ReminderScheduler
 import com.garage.tracker.ui.screens.*
 import com.garage.tracker.ui.theme.Cream
@@ -149,10 +149,10 @@ private fun GarageApp(vm: GarageViewModel) {
                 onSelectVehicle = vm::select, onAddVehicle = { dialog = "vehicle" }, onBump = vm::bumpOdometer,
                 onAddSchedule = { dialog = "schedule" }, onMarkDone = vm::markDone,
                 onRemind = { sch ->
-                    val left = sch.milesRemaining(vehicle?.currentOdometer ?: 0)
+                    val left = sch.kmRemaining(vehicle?.currentOdometer ?: 0)
                     openReminderDialog(
                         "${sch.serviceName} due",
-                        if (left < 0) "Overdue by ${"%,d".format(-left)} mi" else "About ${"%,d".format(left)} mi left (due at ${"%,d".format(sch.lastDoneOdometer + sch.intervalMiles)} mi)",
+                        if (left < 0) "Overdue by ${"%,d".format(-left)} km" else "About ${"%,d".format(left)} km left (due at ${"%,d".format(sch.lastDoneOdometer + sch.intervalKm)} km)",
                     )
                 }, onDeleteSchedule = vm::deleteSchedule,
                 modelFile = vehicle?.let { vm.modelFile(it.vehicleId) },

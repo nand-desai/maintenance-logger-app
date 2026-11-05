@@ -54,7 +54,7 @@ fun DashboardScreen(
                     TextButton(onClick = onAddSchedule) { Icon(Icons.Default.Add, null); Text("Add") }
                 }
             }
-            items(schedules.sortedBy { it.milesRemaining(vehicle.currentOdometer) }, key = { it.scheduleId }) { s ->
+            items(schedules.sortedBy { it.kmRemaining(vehicle.currentOdometer) }, key = { it.scheduleId }) { s ->
                 MaintenanceCard(s, vehicle.currentOdometer, { onMarkDone(s) }, { onRemind(s) }, { onDeleteSchedule(s) })
             }
         }
@@ -78,7 +78,7 @@ private fun GarageHeader(
                         style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        vehicle?.let { "${it.year} · ${"%,d".format(it.currentOdometer)} mi" } ?: "Tap + to add one",
+                        vehicle?.let { "${it.year} · ${"%,d".format(it.currentOdometer)} km" } ?: "Tap + to add one",
                         color = InkSoft, style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -94,7 +94,7 @@ private fun GarageHeader(
             }
             IconButton(onClick = { open = true }) { Icon(Icons.Default.ArrowDropDown, "Switch vehicle") }
             if (vehicle != null) {
-                FilledTonalButton(onClick = { onBump(500) }) { Text("+500 mi") }
+                FilledTonalButton(onClick = { onBump(100) }) { Text("+100 km") }
             }
         }
     }
@@ -103,12 +103,12 @@ private fun GarageHeader(
 @Composable
 private fun MaintenanceCard(s: MaintenanceSchedule, odometer: Int, onDone: () -> Unit, onRemind: () -> Unit, onDelete: () -> Unit) {
     val h = s.health(odometer).style()
-    val left = s.milesRemaining(odometer)
+    val left = s.kmRemaining(odometer)
     SoftCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(s.serviceName, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Pill(
-                if (left < 0) "${"%,d".format(-left)} mi overdue" else "${"%,d".format(left)} mi left",
+                if (left < 0) "${"%,d".format(-left)} km overdue" else "${"%,d".format(left)} km left",
                 h.bg, h.fg,
             )
         }
@@ -120,7 +120,7 @@ private fun MaintenanceCard(s: MaintenanceSchedule, odometer: Int, onDone: () ->
         )
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Every ${"%,d".format(s.intervalMiles)} mi · last at ${"%,d".format(s.lastDoneOdometer)}", Modifier.weight(1f), color = InkSoft, style = MaterialTheme.typography.bodySmall)
+            Text("Every ${"%,d".format(s.intervalKm)} km · last at ${"%,d".format(s.lastDoneOdometer)}", Modifier.weight(1f), color = InkSoft, style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = onDone) { Text("Mark done") }
             IconButton(onClick = onRemind) { Icon(Icons.Default.NotificationAdd, "Remind me", tint = Primary) }
             IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, "Delete", tint = InkSoft) }

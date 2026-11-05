@@ -39,3 +39,12 @@ fun Pill(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier) {
 
 fun parseColor(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Primary)
+
+private val cad: java.text.NumberFormat =
+    java.text.NumberFormat.getCurrencyInstance(java.util.Locale("en", "CA"))
+
+/** Canadian dollars, e.g. $1,234.56 */
+fun money(amount: Double, decimals: Int = 2): String =
+    (cad.clone() as java.text.NumberFormat).apply {
+        minimumFractionDigits = decimals; maximumFractionDigits = decimals
+    }.format(amount)

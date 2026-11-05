@@ -36,11 +36,11 @@ fun AnalyticsScreen(
         item {
             SoftCard {
                 Text("Total cost of ownership", color = InkSoft, style = MaterialTheme.typography.labelLarge)
-                Text("$%,.2f".format(summary.lifetimeCost), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(money(summary.lifetimeCost), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Stat("Cost / mile", summary.costPerMile?.let { "$%.2f".format(it) } ?: "—")
-                    Stat("Fuel economy", summary.mpg?.let { "%.1f MPG".format(it) } ?: "—")
+                    Stat("Cost / km", summary.costPerKm?.let { money(it) } ?: "—")
+                    Stat("Fuel use", summary.litresPer100Km?.let { "%.1f L/100 km".format(it) } ?: "—")
                 }
             }
         }
@@ -55,7 +55,7 @@ fun AnalyticsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(10.dp).background(s.color, CircleShape))
                                 Spacer(Modifier.width(8.dp))
-                                Text("${s.label}  $%,.0f".format(s.value), style = MaterialTheme.typography.bodyMedium)
+                                Text("${s.label}  ${money(s.value, 0)}", style = MaterialTheme.typography.bodyMedium)
                             }
                         }
                     }
@@ -67,9 +67,9 @@ fun AnalyticsScreen(
             SoftCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("${l.category} · $%,.2f".format(l.cost), fontWeight = FontWeight.SemiBold)
+                        Text("${l.category} · ${money(l.cost)}", fontWeight = FontWeight.SemiBold)
                         Text(
-                            "${l.date} · ${"%,d".format(l.odometer)} mi" + if (l.fuelGallons > 0) " · %.1f gal".format(l.fuelGallons) else "",
+                            "${l.date} · ${"%,d".format(l.odometer)} km" + if (l.fuelLiters > 0) " · %.1f L".format(l.fuelLiters) else "",
                             color = InkSoft, style = MaterialTheme.typography.bodySmall,
                         )
                     }

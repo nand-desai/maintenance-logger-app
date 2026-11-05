@@ -24,7 +24,7 @@ data class MaintenanceSchedule(
     @PrimaryKey val scheduleId: String,
     val vehicleId: String,
     val serviceName: String,
-    val intervalMiles: Int,
+    val intervalKm: Int,
     val lastDoneOdometer: Int,
 )
 
@@ -40,7 +40,7 @@ data class ExpenseLog(
     val odometer: Int,
     val category: String,
     val cost: Double,
-    val fuelGallons: Double = 0.0,
+    val fuelLiters: Double = 0.0,
 )
 
 @Entity(tableName = "reminders")

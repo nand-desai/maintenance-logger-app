@@ -3,25 +3,25 @@ package com.garage.tracker.data
 
 enum class Health { Healthy, DueSoon, Overdue }
 
-const val DUE_SOON_MILES = 1000
+const val DUE_SOON_KM = 1500
 
-/** Miles left until the service is due; negative when overdue. */
-fun MaintenanceSchedule.milesRemaining(currentOdometer: Int): Int =
-    lastDoneOdometer + intervalMiles - currentOdometer
+/** Kilometres left until the service is due; negative when overdue. */
+fun MaintenanceSchedule.kmRemaining(currentOdometer: Int): Int =
+    lastDoneOdometer + intervalKm - currentOdometer
 
 fun MaintenanceSchedule.health(currentOdometer: Int): Health {
-    val left = milesRemaining(currentOdometer)
+    val left = kmRemaining(currentOdometer)
     return when {
         left < 0 -> Health.Overdue
-        left <= DUE_SOON_MILES -> Health.DueSoon
+        left <= DUE_SOON_KM -> Health.DueSoon
         else -> Health.Healthy
     }
 }
 
 /** Fraction of the interval already used, clamped to 0..1. */
 fun MaintenanceSchedule.progress(currentOdometer: Int): Float =
-    if (intervalMiles <= 0) 1f
-    else ((currentOdometer - lastDoneOdometer).toFloat() / intervalMiles).coerceIn(0f, 1f)
+    if (intervalKm <= 0) 1f
+    else ((currentOdometer - lastDoneOdometer).toFloat() / intervalKm).coerceIn(0f, 1f)
 
 fun overallHealth(schedules: List<MaintenanceSchedule>, odometer: Int): Health = when {
     schedules.any { it.health(odometer) == Health.Overdue } -> Health.Overdue
@@ -31,33 +31,34 @@ fun overallHealth(schedules: List<MaintenanceSchedule>, odometer: Int): Health =
 
 data class ExpenseSummary(
     val lifetimeCost: Double,
-    val costPerMile: Double?,
-    val mpg: Double?,
+    val costPerKm: Double?,
+    /** Fuel consumption in litres per 100 km. */
+    val litresPer100Km: Double?,
     val byCategory: Map<String, Double>,
 )
 
 /**
- * MPG is computed from the fuel logs: miles driven between the first and last fill-up divided by
- * the gallons added after the first fill-up (the first tank has no known starting point).
+ * Consumption (L/100 km) comes from the fuel logs: the litres added after the first fill-up divided
+ * by the distance driven between the first and last fill-up (the first tank has no known start).
  */
 fun summarize(logs: List<ExpenseLog>, startOdometer: Int?, currentOdometer: Int): ExpenseSummary {
     val total = logs.sumOf { it.cost }
-    val miles = (currentOdometer - (startOdometer ?: logs.minOfOrNull { it.odometer } ?: currentOdometer))
-    val fills = logs.filter { it.category == Categories.FUEL && it.fuelGallons > 0 }.sortedBy { it.odometer }
-    val mpg = if (fills.size >= 2) {
+    val km = (currentOdometer - (startOdometer ?: logs.minOfOrNull { it.odometer } ?: currentOdometer))
+    val fills = logs.filter { it.category == Categories.FUEL && it.fuelLiters > 0 }.sortedBy { it.odometer }
+    val consumption = if (fills.size >= 2) {
         val dist = fills.last().odometer - fills.first().odometer
-        val gallons = fills.drop(1).sumOf { it.fuelGallons }
-        if (dist > 0 && gallons > 0) dist / gallons else null
+        val litres = fills.drop(1).sumOf { it.fuelLiters }
+        if (dist > 0 && litres > 0) litres / dist * 100 else null
     } else null
     return ExpenseSummary(
         lifetimeCost = total,
-        costPerMile = if (miles > 0 && total > 0) total / miles else null,
-        mpg = mpg,
+        costPerKm = if (km > 0 && total > 0) total / km else null,
+        litresPer100Km = consumption,
         byCategory = logs.groupBy { it.category }.mapValues { (_, v) -> v.sumOf { it.cost } },
     )
 }
 
-/** MPG for a single new fuel entry, given the previous fuel log for the same vehicle. */
-fun entryMpg(previousFuelOdometer: Int?, odometer: Int, gallons: Double): Double? =
-    if (previousFuelOdometer != null && gallons > 0 && odometer > previousFuelOdometer)
-        (odometer - previousFuelOdometer) / gallons else null
+/** L/100 km for a single new fuel entry, given the previous fuel log for the same vehicle. */
+fun entryLitresPer100Km(previousFuelOdometer: Int?, odometer: Int, litres: Double): Double? =
+    if (previousFuelOdometer != null && litres > 0 && odometer > previousFuelOdometer)
+        litres / (odometer - previousFuelOdometer) * 100 else null
