@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
@@ -28,6 +29,7 @@ import com.garage.tracker.ui.theme.*
 fun AnalyticsScreen(
     vehicle: Vehicle,
     logs: List<ExpenseLog>,
+    onEdit: (ExpenseLog) -> Unit,
     onDelete: (ExpenseLog) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -94,12 +96,12 @@ fun AnalyticsScreen(
                 }
             }
         }
-        items(logs, key = { it.logId }) { l -> ExpenseCard(l, onDelete) }
+        items(logs, key = { it.logId }) { l -> ExpenseCard(l, onEdit, onDelete) }
     }
 }
 
 @Composable
-private fun ExpenseCard(l: ExpenseLog, onDelete: (ExpenseLog) -> Unit) {
+private fun ExpenseCard(l: ExpenseLog, onEdit: (ExpenseLog) -> Unit, onDelete: (ExpenseLog) -> Unit) {
     var open by rememberSaveable(l.logId) { mutableStateOf(false) }
     SoftCard(onClick = { open = !open }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -117,6 +119,7 @@ private fun ExpenseCard(l: ExpenseLog, onDelete: (ExpenseLog) -> Unit) {
                 DetailRow("Price per litre", money(l.cost / l.fuelLiters, 3))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { onEdit(l) }) { Icon(Icons.Default.Edit, null); Spacer(Modifier.width(6.dp)); Text("Edit") }
                 TextButton(onClick = { onDelete(l) }) {
                     Icon(Icons.Default.DeleteOutline, null, tint = CoralFg); Spacer(Modifier.width(6.dp)); Text("Delete", color = CoralFg)
                 }

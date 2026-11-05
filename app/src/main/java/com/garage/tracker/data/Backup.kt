@@ -13,11 +13,11 @@ object Backup {
 
     data class Counts(
         val vehicles: Int, val schedules: Int, val expenses: Int, val reminders: Int,
-        val tireSets: Int = 0, val tireEvents: Int = 0,
+        val tireSets: Int = 0, val tireEvents: Int = 0, val brakeEntries: Int = 0,
     ) {
         override fun toString() =
             "$vehicles vehicles, $schedules services, $expenses expenses, $reminders reminders, " +
-                "$tireSets tire sets, $tireEvents tire events"
+                "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries"
     }
 
     suspend fun toJson(db: GarageDatabase): String {
@@ -52,6 +52,17 @@ object Backup {
             JSONObject().put("event_id", it.eventId).put("vehicle_id", it.vehicleId)
                 .put("set_id", it.setId ?: JSONObject.NULL).put("type", it.type).put("date", it.date)
                 .put("odometer", it.odometer).put("wheel", it.wheel ?: JSONObject.NULL).put("note", it.note)
+                .put("cost", it.cost).put("tread_fl", it.treadFl ?: JSONObject.NULL).put("tread_fr", it.treadFr ?: JSONObject.NULL)
+                .put("tread_rl", it.treadRl ?: JSONObject.NULL).put("tread_rr", it.treadRr ?: JSONObject.NULL)
+        }))
+        root.put("brake_entries", JSONArray(db.brakeDao().all().map {
+            JSONObject().put("entry_id", it.entryId).put("vehicle_id", it.vehicleId).put("date", it.date)
+                .put("odometer", it.odometer).put("type", it.type).put("front_mm", it.frontMm ?: JSONObject.NULL)
+                .put("rear_mm", it.rearMm ?: JSONObject.NULL).put("cost", it.cost).put("note", it.note)
+        }))
+        root.put("recurring_expenses", JSONArray(db.recurringDao().all().map {
+            JSONObject().put("recurring_id", it.recurringId).put("vehicle_id", it.vehicleId).put("category", it.category)
+                .put("amount", it.amount).put("day_of_month", it.dayOfMonth).put("next_due", it.nextDue).put("active", it.active)
         }))
         return root.toString(2)
     }
@@ -89,7 +100,16 @@ object Backup {
         val tireEvents = root.optJSONArray("tire_events").objects().map {
             TireEvent(it.getString("event_id"), it.getString("vehicle_id"),
                 if (it.isNull("set_id")) null else it.getString("set_id"), it.getString("type"), it.getString("date"),
-                it.getInt("odometer"), if (it.isNull("wheel")) null else it.getString("wheel"), it.optString("note", ""))
+                it.getInt("odometer"), if (it.isNull("wheel")) null else it.getString("wheel"), it.optString("note", ""),
+                it.optDouble("cost", 0.0), it.optMm("tread_fl"), it.optMm("tread_fr"), it.optMm("tread_rl"), it.optMm("tread_rr"))
+        }
+        val brakes = root.optJSONArray("brake_entries").objects().map {
+            BrakeEntry(it.getString("entry_id"), it.getString("vehicle_id"), it.getString("date"), it.getInt("odometer"),
+                it.getString("type"), it.optMm("front_mm"), it.optMm("rear_mm"), it.optDouble("cost", 0.0), it.optString("note", ""))
+        }
+        val recurring = root.optJSONArray("recurring_expenses").objects().map {
+            RecurringExpense(it.getString("recurring_id"), it.getString("vehicle_id"), it.getString("category"),
+                it.getDouble("amount"), it.getInt("day_of_month"), it.getString("next_due"), it.optBoolean("active", true))
         }
         db.withTransaction {
             vehicles.forEach { db.vehicleDao().upsert(it) }
@@ -98,9 +118,13 @@ object Backup {
             reminders.forEach { db.reminderDao().upsert(it) }
             tireSets.forEach { db.tireDao().upsertSet(it) }
             tireEvents.forEach { db.tireDao().upsertEvent(it) }
+            brakes.forEach { db.brakeDao().upsert(it) }
+            recurring.forEach { db.recurringDao().upsert(it) }
         }
-        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size)
+        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size, brakes.size)
     }
+
+    private fun JSONObject.optMm(key: String): Double? = if (isNull(key) || !has(key)) null else getDouble(key)
 
     private fun JSONArray?.objects(): List<JSONObject> =
         if (this == null) emptyList() else List(length()) { getJSONObject(it) }

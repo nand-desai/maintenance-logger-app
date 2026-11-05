@@ -54,6 +54,9 @@ interface ExpenseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(log: ExpenseLog)
 
+    @Query("DELETE FROM expense_logs WHERE logId = :id")
+    suspend fun deleteById(id: String)
+
     @Delete
     suspend fun delete(log: ExpenseLog)
 }
@@ -108,4 +111,37 @@ interface TireDao {
     /** Takes whatever is on the car off, banking the km it just drove. */
     @Query("UPDATE tire_sets SET mounted = 0, kmBefore = kmBefore + MAX(0, :odometer - mountedAtOdometer) WHERE vehicleId = :vehicleId AND mounted = 1")
     suspend fun unmountAll(vehicleId: String, odometer: Int)
+}
+
+@Dao
+interface BrakeDao {
+    @Query("SELECT * FROM brake_entries WHERE vehicleId = :vehicleId ORDER BY date DESC, odometer DESC")
+    fun observe(vehicleId: String): Flow<List<BrakeEntry>>
+
+    @Query("SELECT * FROM brake_entries")
+    suspend fun all(): List<BrakeEntry>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: BrakeEntry)
+
+    @Delete
+    suspend fun delete(entry: BrakeEntry)
+}
+
+@Dao
+interface RecurringDao {
+    @Query("SELECT * FROM recurring_expenses WHERE vehicleId = :vehicleId AND category = :category LIMIT 1")
+    fun observe(vehicleId: String, category: String): Flow<RecurringExpense?>
+
+    @Query("SELECT * FROM recurring_expenses WHERE active = 1")
+    suspend fun allActive(): List<RecurringExpense>
+
+    @Query("SELECT * FROM recurring_expenses")
+    suspend fun all(): List<RecurringExpense>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(plan: RecurringExpense)
+
+    @Delete
+    suspend fun delete(plan: RecurringExpense)
 }

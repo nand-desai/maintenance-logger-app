@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.garage.tracker.data.AppSettings
+import com.garage.tracker.data.RecurringExpense
 import com.garage.tracker.data.Vehicle
 import com.garage.tracker.ui.components.VehiclePhoto
 import com.garage.tracker.ui.theme.CoralFg
@@ -37,6 +38,8 @@ fun SettingsScreen(
     onSetOdometer: () -> Unit,
     onPickPhoto: () -> Unit,
     onRemovePhoto: () -> Unit,
+    insurance: RecurringExpense?,
+    onInsurance: () -> Unit,
     onDeleteVehicle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -97,6 +100,12 @@ fun SettingsScreen(
             SoftCard {
                 SettingRow(Icons.Default.Edit, "Edit details", "${vehicle.year} ${vehicle.make} ${vehicle.model}", onEditVehicle)
                 SettingRow(Icons.Default.Speed, "Set odometer", "${"%,d".format(vehicle.currentOdometer)} km", onSetOdometer)
+                SettingRow(
+                    Icons.Default.Payments, "Monthly insurance",
+                    insurance?.let { "${money(it.amount)} on day ${it.dayOfMonth}" + if (it.active) " · next ${it.nextDue}" else " · paused" }
+                        ?: "Not set up. Tap to add it automatically each month",
+                    onInsurance,
+                )
                 SettingRow(Icons.Default.Add, "Add another vehicle", "Switch between cars from the Garage tab", onAddVehicle)
             }
         }

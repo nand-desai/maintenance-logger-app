@@ -14,7 +14,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
+import com.garage.tracker.data.ExpenseLog
 import com.garage.tracker.data.MaintenanceSchedule
+import com.garage.tracker.data.RecurringExpense
 import com.garage.tracker.data.Vehicle
 import com.garage.tracker.data.Categories
 import com.garage.tracker.data.entryLitresPer100Km
@@ -31,31 +33,38 @@ internal val dec = KeyboardOptions(keyboardType = KeyboardType.Decimal)
 internal fun Field(value: String, onChange: (String) -> Unit, label: String, kb: KeyboardOptions = KeyboardOptions.Default) =
     OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true, keyboardOptions = kb, modifier = Modifier.fillMaxWidth())
 
+private fun parseDate(s: String?): LocalDate =
+    s?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
+
+/** Accepts "6,5" as well as "6.5". */
+internal fun String.toNumber(): Double? = trim().replace(',', '.').toDoubleOrNull()
+
+/** Add an expense, or edit one when [initial] is given. */
 @Composable
 fun AddEntryDialog(
+    initial: ExpenseLog?,
     defaultOdometer: Int,
     previousFuelOdometer: Int?,
     onDismiss: () -> Unit,
     onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double) -> Unit,
 ) {
-    var date by remember { mutableStateOf(LocalDate.now().toString()) }
-    var odo by remember { mutableStateOf(defaultOdometer.toString()) }
-    var category by remember { mutableStateOf(Categories.FUEL) }
-    var cost by remember { mutableStateOf("") }
-    var litres by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(parseDate(initial?.date)) }
+    var odo by remember { mutableStateOf((initial?.odometer ?: defaultOdometer).toString()) }
+    var category by remember { mutableStateOf(initial?.category ?: Categories.FUEL) }
+    var cost by remember { mutableStateOf(initial?.cost?.toString() ?: "") }
+    var litres by remember { mutableStateOf(initial?.fuelLiters?.takeIf { it > 0 }?.toString() ?: "") }
 
-    val validDate = runCatching { LocalDate.parse(date) }.isSuccess
     val odoV = odo.toIntOrNull()
-    val costV = cost.toDoubleOrNull()
-    val fuel = litres.toDoubleOrNull() ?: 0.0
+    val costV = cost.toNumber()
+    val fuel = litres.toNumber() ?: 0.0
     val consumption = if (category == Categories.FUEL && odoV != null) entryLitresPer100Km(previousFuelOdometer, odoV, fuel) else null
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add entry") },
+        title = { Text(if (initial == null) "Add entry" else "Edit entry") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Field(date, { date = it }, "Date (YYYY-MM-DD)")
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DateButton(date, { date = it })
                 Field(odo, { odo = it }, "Odometer (km)", num)
                 var menu by remember { mutableStateOf(false) }
                 Box {
@@ -73,8 +82,8 @@ fun AddEntryDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = validDate && odoV != null && costV != null,
-                onClick = { onSave(date, odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0); onDismiss() },
+                enabled = odoV != null && costV != null,
+                onClick = { onSave(date.toString(), odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
@@ -136,14 +145,14 @@ fun SetOdometerDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit
     )
 }
 
-/** Date and price: that's all a car wash needs. */
+/** Date and price: that's all a car wash needs. Pass [initial] to edit one. */
 @Composable
-fun LogWashDialog(onDismiss: () -> Unit, onSave: (date: String, cost: Double) -> Unit) {
-    var date by remember { mutableStateOf(LocalDate.now()) }
-    var cost by remember { mutableStateOf("") }
+fun LogWashDialog(initial: ExpenseLog?, onDismiss: () -> Unit, onSave: (date: String, cost: Double) -> Unit) {
+    var date by remember { mutableStateOf(parseDate(initial?.date)) }
+    var cost by remember { mutableStateOf(initial?.cost?.toString() ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Log a car wash") },
+        title = { Text(if (initial == null) "Log a car wash" else "Edit car wash") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 DateButton(date, { date = it })
@@ -151,7 +160,46 @@ fun LogWashDialog(onDismiss: () -> Unit, onSave: (date: String, cost: Double) ->
             }
         },
         confirmButton = {
-            TextButton(enabled = cost.toDoubleOrNull() != null, onClick = { onSave(date.toString(), cost.toDouble()); onDismiss() }) { Text("Save") }
+            TextButton(enabled = cost.toNumber() != null, onClick = { onSave(date.toString(), cost.toNumber()!!); onDismiss() }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Monthly insurance that adds itself to the expenses on the same day every month. */
+@Composable
+fun InsurancePlanDialog(
+    existing: RecurringExpense?,
+    onDismiss: () -> Unit,
+    onSave: (amount: Double, firstDate: LocalDate, active: Boolean) -> Unit,
+    onRemove: () -> Unit,
+) {
+    var amount by remember { mutableStateOf(existing?.amount?.toString() ?: "") }
+    var date by remember { mutableStateOf(parseDate(existing?.nextDue)) }
+    var active by remember { mutableStateOf(existing?.active ?: true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Monthly insurance") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Field(amount, { amount = it }, "Monthly payment (CAD)", dec)
+                Text(if (existing == null) "First payment date" else "Next payment date", style = MaterialTheme.typography.labelLarge)
+                DateButton(date, { date = it })
+                Text(
+                    "Carlo adds this to your expenses on the same day each month, including any payments from that date up to today.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Add automatically", Modifier.weight(1f))
+                    Switch(active, { active = it })
+                }
+                if (existing != null) {
+                    TextButton(onClick = { onRemove(); onDismiss() }) { Text("Remove monthly insurance") }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = (amount.toNumber() ?: 0.0) > 0, onClick = { onSave(amount.toNumber()!!, date, active); onDismiss() }) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )

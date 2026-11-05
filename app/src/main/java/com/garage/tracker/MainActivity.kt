@@ -14,22 +14,25 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.garage.tracker.data.Categories
-import com.garage.tracker.data.MaintenanceSchedule
-import com.garage.tracker.data.TireSet
-import com.garage.tracker.data.kmRemaining
+import com.garage.tracker.data.*
 import com.garage.tracker.notifications.ReminderScheduler
 import com.garage.tracker.ui.screens.*
 import com.garage.tracker.ui.theme.Cream
@@ -70,22 +73,34 @@ private fun GarageApp(vm: GarageViewModel) {
     val reminders by vm.reminders.collectAsStateWithLifecycle()
     val tireSets by vm.tireSets.collectAsStateWithLifecycle()
     val tireEvents by vm.tireEvents.collectAsStateWithLifecycle()
+    val brakeEntries by vm.brakeEntries.collectAsStateWithLifecycle()
+    val insurancePlan by vm.insurancePlan.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val photoVersion by vm.photoVersion.collectAsStateWithLifecycle()
 
     var tab by remember { mutableIntStateOf(0) }
+    var wheelsPane by rememberSaveable { mutableIntStateOf(0) } // 0 = tires, 1 = brakes
     var dialog by remember { mutableStateOf<String?>(null) }
+
+    // What the open dialog is editing (null = adding something new)
     var editingSchedule by remember { mutableStateOf<MaintenanceSchedule?>(null) }
+    var editingExpense by remember { mutableStateOf<ExpenseLog?>(null) }
+    var editingWash by remember { mutableStateOf<ExpenseLog?>(null) }
     var editingSet by remember { mutableStateOf<TireSet?>(null) }
+    var editingEvent by remember { mutableStateOf<TireEvent?>(null) }
+    var editingBrake by remember { mutableStateOf<BrakeEntry?>(null) }
     var setTarget by remember { mutableStateOf<TireSet?>(null) }
     var eventPreset by remember { mutableStateOf<Pair<String?, String?>>(null to null) }
+    var brakePreset by remember { mutableStateOf<String?>(null) }
     var prefill by remember { mutableStateOf("" to "") }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(message) {
         message?.let { snackbar.showSnackbar(it); vm.clearMessage() }
     }
+    // Monthly payments that came due while the app was closed are added when it opens.
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { vm.refreshRecurring() }
 
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(vm::importBackup)
@@ -122,7 +137,7 @@ private fun GarageApp(vm: GarageViewModel) {
         }
 
         else -> {
-            val titles = listOf("My Garage", "Expenses", "Tires", "Reminders", "Settings")
+            val titles = listOf("My Garage", "Expenses", "Tires & brakes", "Reminders", "Settings")
             Scaffold(
                 containerColor = Cream,
                 snackbarHost = { SnackbarHost(snackbar) },
@@ -136,23 +151,26 @@ private fun GarageApp(vm: GarageViewModel) {
                     NavigationBar(containerColor = Color.White) {
                         NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Default.DirectionsCar, null) }, label = { Text("Garage") })
                         NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Default.DonutLarge, null) }, label = { Text("Expenses") })
-                        NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Default.TireRepair, null) }, label = { Text("Tires") })
+                        NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Default.TireRepair, null) }, label = { Text("Wheels") })
                         NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Default.Notifications, null) }, label = { Text("Reminders") })
                         NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
                     }
                 },
                 floatingActionButton = {
                     when (tab) {
-                        2 -> ExtendedFloatingActionButton(
-                            onClick = { eventPreset = null to null; dialog = "tireEvent" },
+                        2 -> if (wheelsPane == 0) ExtendedFloatingActionButton(
+                            onClick = { editingEvent = null; eventPreset = null to null; dialog = "tireEvent" },
                             icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log tire event") },
+                        ) else ExtendedFloatingActionButton(
+                            onClick = { editingBrake = null; brakePreset = null; dialog = "brake" },
+                            icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log brake pads") },
                         )
                         3 -> ExtendedFloatingActionButton(
                             onClick = { openReminderDialog() },
                             icon = { Icon(Icons.Default.AddAlert, null) }, text = { Text("Add reminder") },
                         )
                         0, 1 -> ExtendedFloatingActionButton(
-                            onClick = { dialog = "entry" },
+                            onClick = { editingExpense = null; dialog = "entry" },
                             icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add entry") },
                         )
                     }
@@ -181,21 +199,36 @@ private fun GarageApp(vm: GarageViewModel) {
                             )
                         },
                         onDeleteSchedule = vm::deleteSchedule,
-                        onLogWash = { dialog = "wash" },
+                        onLogWash = { editingWash = null; dialog = "wash" },
+                        onEditWash = { editingWash = it; dialog = "wash" },
                         onDeleteWash = vm::deleteExpense,
                         modifier = m,
                     )
-                    1 -> AnalyticsScreen(active, logs, vm::deleteExpense, m)
-                    2 -> TiresScreen(
-                        vehicle = active, sets = tireSets, events = tireEvents,
-                        onAddSet = { editingSet = null; dialog = "tireSet" },
-                        onEditSet = { editingSet = it; dialog = "tireSet" },
-                        onDeleteSet = { setTarget = it; dialog = "deleteSet" },
-                        onMountSet = { setTarget = it; dialog = "mountSet" },
-                        onLogEvent = { type, wheel -> eventPreset = type to wheel; dialog = "tireEvent" },
-                        onDeleteEvent = vm::deleteTireEvent,
-                        modifier = m,
-                    )
+                    1 -> AnalyticsScreen(active, logs, onEdit = { editingExpense = it; dialog = "entry" }, onDelete = vm::deleteExpense, modifier = m)
+                    2 -> Column(m) {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            SegmentedButton(wheelsPane == 0, { wheelsPane = 0 }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Tires") }
+                            SegmentedButton(wheelsPane == 1, { wheelsPane = 1 }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("Brakes") }
+                        }
+                        if (wheelsPane == 0) TiresScreen(
+                            vehicle = active, sets = tireSets, events = tireEvents,
+                            onAddSet = { editingSet = null; dialog = "tireSet" },
+                            onEditSet = { editingSet = it; dialog = "tireSet" },
+                            onDeleteSet = { setTarget = it; dialog = "deleteSet" },
+                            onMountSet = { setTarget = it; dialog = "swap" },
+                            onSwap = { setTarget = null; dialog = "swap" },
+                            onLogEvent = { type, wheel -> editingEvent = null; eventPreset = type to wheel; dialog = "tireEvent" },
+                            onEditEvent = { editingEvent = it; eventPreset = null to null; dialog = "tireEvent" },
+                            onDeleteEvent = vm::deleteTireEvent,
+                            modifier = Modifier.weight(1f),
+                        ) else BrakesScreen(
+                            vehicle = active, entries = brakeEntries,
+                            onLog = { type -> editingBrake = null; brakePreset = type; dialog = "brake" },
+                            onEdit = { editingBrake = it; brakePreset = null; dialog = "brake" },
+                            onDelete = vm::deleteBrakeEntry,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     3 -> RemindersScreen(reminders, list, vm::deleteReminder, m)
                     else -> SettingsScreen(
                         vehicle = active, settings = settings, photoFile = photo, photoVersion = photoVersion,
@@ -207,6 +240,8 @@ private fun GarageApp(vm: GarageViewModel) {
                         onSetOdometer = { dialog = "odometer" },
                         onPickPhoto = ::pickPhoto,
                         onRemovePhoto = vm::removePhoto,
+                        insurance = insurancePlan,
+                        onInsurance = { dialog = "insurance" },
                         onDeleteVehicle = { dialog = "deleteVehicle" },
                         modifier = m,
                     )
@@ -223,13 +258,27 @@ private fun GarageApp(vm: GarageViewModel) {
             }
         }
         "odometer" -> active?.let { v -> SetOdometerDialog(v.currentOdometer, { dialog = null }, vm::setOdometer) }
+
         "entry" -> active?.let { v ->
+            val editing = editingExpense
             AddEntryDialog(
+                initial = editing,
                 defaultOdometer = v.currentOdometer,
-                previousFuelOdometer = logs.filter { it.category == Categories.FUEL }.maxOfOrNull { it.odometer },
-                onDismiss = { dialog = null }, onSave = vm::addExpense,
-            )
+                previousFuelOdometer = logs.filter { it.category == Categories.FUEL && it.logId != editing?.logId }.maxOfOrNull { it.odometer },
+                onDismiss = { dialog = null },
+            ) { date, odo, category, cost, litres ->
+                if (editing != null) vm.updateExpense(editing.copy(date = date, odometer = odo, category = category, cost = cost, fuelLiters = litres))
+                else vm.addExpense(date, odo, category, cost, litres)
+            }
         }
+        "wash" -> {
+            val editing = editingWash
+            LogWashDialog(editing, { dialog = null }) { date, cost ->
+                if (editing != null) vm.updateExpense(editing.copy(date = date, cost = cost)) else vm.addWash(date, cost)
+            }
+        }
+        "insurance" -> InsurancePlanDialog(insurancePlan, { dialog = null }, vm::saveInsurance, vm::removeInsurance)
+
         "schedule" -> active?.let { v ->
             val editing = editingSchedule
             ScheduleDialog(v.currentOdometer, editing, { dialog = null }) { name, interval, last ->
@@ -237,13 +286,25 @@ private fun GarageApp(vm: GarageViewModel) {
                 else vm.addSchedule(name, interval, last)
             }
         }
-        "wash" -> LogWashDialog({ dialog = null }, vm::addWash)
+
         "tireSet" -> TireSetDialog(editingSet, isFirst = tireSets.isEmpty(), onDismiss = { dialog = null }) { name, season, brand, size, km, mountNow ->
             val editing = editingSet
             if (editing != null) vm.updateTireSet(editing.copy(name = name, season = season, brand = brand, size = size, kmBefore = km))
             else vm.addTireSet(name, season, brand, size, km, mountNow)
         }
-        "mountSet" -> active?.let { v -> setTarget?.let { t -> MountDialog(t, v.currentOdometer, { dialog = null }) { odo -> vm.mountTireSet(t, odo) } } }
+        "swap" -> active?.let { v ->
+            val target = setTarget
+            val candidates = if (target != null) listOf(target) else tireSets.filter { !it.mounted }
+            val mountedSeason = tireSets.firstOrNull { it.mounted }?.season
+            val opposite = when (mountedSeason) { Seasons.SUMMER -> Seasons.WINTER; Seasons.WINTER -> Seasons.SUMMER; else -> null }
+            SwapDialog(
+                candidates = candidates,
+                preselected = target ?: candidates.firstOrNull { it.season == opposite },
+                currentOdometer = v.currentOdometer,
+                onDismiss = { dialog = null },
+                onConfirm = vm::swapTires,
+            )
+        }
         "deleteSet" -> setTarget?.let { t ->
             AlertDialog(
                 onDismissRequest = { dialog = null },
@@ -254,14 +315,25 @@ private fun GarageApp(vm: GarageViewModel) {
             )
         }
         "tireEvent" -> active?.let { v ->
-            TireEventDialog(eventPreset.first, eventPreset.second, v.currentOdometer, { dialog = null }, vm::addTireEvent)
+            val editing = editingEvent
+            TireEventDialog(editing, eventPreset.first, eventPreset.second, v.currentOdometer, { dialog = null }) { type, date, odo, wheel, note, cost, fl, fr, rl, rr ->
+                vm.saveTireEvent(editing, type, date, odo, wheel, note, cost, fl, fr, rl, rr)
+            }
         }
+
+        "brake" -> active?.let { v ->
+            val editing = editingBrake
+            BrakeDialog(editing, brakePreset, v.currentOdometer, { dialog = null }) { type, date, odo, front, rear, cost, note ->
+                vm.saveBrakeEntry(editing, type, date, odo, front, rear, cost, note)
+            }
+        }
+
         "reminder" -> AddReminderDialog(settings.reminderHour, prefill.first, prefill.second, { dialog = null }, vm::addReminder)
         "deleteVehicle" -> active?.let { v ->
             AlertDialog(
                 onDismissRequest = { dialog = null },
                 title = { Text("Delete ${v.make} ${v.model}?") },
-                text = { Text("This also deletes its services, expenses, reminders and photo. It can't be undone, so make a backup first if you're unsure.") },
+                text = { Text("This also deletes its services, expenses, tires, brakes, reminders and photo. It can't be undone, so make a backup first if you're unsure.") },
                 confirmButton = { TextButton({ vm.deleteVehicle(v); dialog = null; tab = 0 }) { Text("Delete") } },
                 dismissButton = { TextButton({ dialog = null }) { Text("Cancel") } },
             )

@@ -56,12 +56,22 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { v -> v?.let { db.tireDao().observeEvents(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val brakeEntries: StateFlow<List<BrakeEntry>> = activeVehicle
+        .flatMapLatest { v -> v?.let { db.brakeDao().observe(it.vehicleId) } ?: flowOf(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val insurancePlan: StateFlow<RecurringExpense?> = activeVehicle
+        .flatMapLatest { v -> v?.let { db.recurringDao().observe(it.vehicleId, Categories.INSURANCE) } ?: flowOf(null) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     val reminders: StateFlow<List<Reminder>> =
         db.reminderDao().observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** One-shot message for the snackbar. */
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
+
+    init { viewModelScope.launch { runRecurring() } }
 
     fun say(msg: String) { _message.value = msg }
     fun clearMessage() { _message.value = null }
@@ -116,6 +126,8 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
         }
 
+    fun updateExpense(log: ExpenseLog) = viewModelScope.launch { db.expenseDao().upsert(log) }
+
     /** A quick car-wash entry. It is stored as an expense so it counts toward your totals. */
     fun addWash(date: String, cost: Double) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
@@ -138,31 +150,116 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteTireSet(set: TireSet) = viewModelScope.launch { db.tireDao().deleteSet(set) }
 
-    /** Puts [set] on the car at [odometer]; whatever was on before is taken off and its km banked. */
-    fun mountTireSet(set: TireSet, odometer: Int) = viewModelScope.launch {
+    /** Swaps to [target] (e.g. summer to winter): the old set comes off, and the swap is logged with its cost. */
+    fun swapTires(target: TireSet, date: String, odometer: Int, cost: Double, note: String) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
-        mountInternal(v, set, odometer)
+        mountInternal(v, target, odometer, date, cost, note)
     }
 
-    private suspend fun mountInternal(v: Vehicle, set: TireSet, odometer: Int) {
+    private suspend fun mountInternal(
+        v: Vehicle, set: TireSet, odometer: Int,
+        date: String = LocalDate.now().toString(), cost: Double = 0.0, note: String = "",
+    ) {
         db.withTransaction {
             db.tireDao().unmountAll(v.vehicleId, odometer)
             db.tireDao().upsertSet(set.copy(mounted = true, mountedAtOdometer = odometer))
-            db.tireDao().upsertEvent(
-                TireEvent(newId("TIR"), v.vehicleId, set.setId, TireEventType.SWAP, LocalDate.now().toString(), odometer, null, "Mounted ${set.name}"),
+            val e = TireEvent(
+                newId("TIR"), v.vehicleId, set.setId, TireEventType.SWAP, date, odometer, null,
+                note.ifBlank { "Mounted ${set.name}" }, cost,
             )
+            db.tireDao().upsertEvent(e)
+            mirrorCost(e.eventId, v.vehicleId, date, odometer, cost)
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
         }
     }
 
-    fun addTireEvent(type: String, date: String, odometer: Int, wheel: String?, note: String) = viewModelScope.launch {
+    /** Adds or edits a tire log entry. A cost also shows up in Expenses under Service. */
+    fun saveTireEvent(
+        existing: TireEvent?, type: String, date: String, odometer: Int, wheel: String?, note: String,
+        cost: Double, fl: Double?, fr: Double?, rl: Double?, rr: Double?,
+    ) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
         val onCar = tireSets.value.firstOrNull { it.mounted }?.setId
-        db.tireDao().upsertEvent(TireEvent(newId("TIR"), v.vehicleId, onCar, type, date, odometer, wheel, note))
+        val e = TireEvent(
+            existing?.eventId ?: newId("TIR"), v.vehicleId, existing?.setId ?: onCar,
+            type, date, odometer, wheel, note, cost, fl, fr, rl, rr,
+        )
+        db.withTransaction {
+            db.tireDao().upsertEvent(e)
+            mirrorCost(e.eventId, v.vehicleId, date, odometer, cost)
+        }
         if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
     }
 
-    fun deleteTireEvent(e: TireEvent) = viewModelScope.launch { db.tireDao().deleteEvent(e) }
+    fun deleteTireEvent(e: TireEvent) = viewModelScope.launch {
+        db.withTransaction {
+            db.tireDao().deleteEvent(e)
+            db.expenseDao().deleteById("EXP_${e.eventId}")
+        }
+    }
+
+    /** Keeps a matching Service expense in sync with a cost entered on a tire or brake entry. */
+    private suspend fun mirrorCost(sourceId: String, vehicleId: String, date: String, odometer: Int, cost: Double) {
+        val id = "EXP_$sourceId"
+        if (cost > 0) db.expenseDao().upsert(ExpenseLog(id, vehicleId, date, odometer, Categories.SERVICE, cost, 0.0))
+        else db.expenseDao().deleteById(id)
+    }
+
+    // ---- Brakes --------------------------------------------------------------------------------
+
+    fun saveBrakeEntry(
+        existing: BrakeEntry?, type: String, date: String, odometer: Int,
+        frontMm: Double?, rearMm: Double?, cost: Double, note: String,
+    ) = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        val e = BrakeEntry(existing?.entryId ?: newId("BRK"), v.vehicleId, date, odometer, type, frontMm, rearMm, cost, note)
+        db.withTransaction {
+            db.brakeDao().upsert(e)
+            mirrorCost(e.entryId, v.vehicleId, date, odometer, cost)
+        }
+        if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+    }
+
+    fun deleteBrakeEntry(e: BrakeEntry) = viewModelScope.launch {
+        db.withTransaction {
+            db.brakeDao().delete(e)
+            db.expenseDao().deleteById("EXP_${e.entryId}")
+        }
+    }
+
+    // ---- Monthly insurance ---------------------------------------------------------------------
+
+    /** Sets up (or changes) the monthly insurance payment, starting at [firstDate]. */
+    fun saveInsurance(amount: Double, firstDate: LocalDate, active: Boolean) = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        db.recurringDao().upsert(
+            RecurringExpense("REC_${v.vehicleId}_Insurance", v.vehicleId, Categories.INSURANCE, amount, firstDate.dayOfMonth, firstDate.toString(), active),
+        )
+        runRecurring()
+    }
+
+    fun removeInsurance() = viewModelScope.launch { insurancePlan.value?.let { db.recurringDao().delete(it) } }
+
+    fun refreshRecurring() = viewModelScope.launch { runRecurring() }
+
+    /** Adds every monthly payment that has come due since the app last looked. */
+    private suspend fun runRecurring() {
+        val today = LocalDate.now()
+        val vehicles = db.vehicleDao().getAll().associateBy { it.vehicleId }
+        db.recurringDao().allActive().forEach { plan ->
+            val odometer = vehicles[plan.vehicleId]?.currentOdometer ?: return@forEach
+            var due = runCatching { LocalDate.parse(plan.nextDue) }.getOrNull() ?: return@forEach
+            var added = 0
+            while (!due.isAfter(today) && added < 600) {
+                // Fixed id per month: running this twice can never double-add a payment.
+                db.expenseDao().upsert(ExpenseLog("${plan.recurringId}_$due", plan.vehicleId, due.toString(), odometer, plan.category, plan.amount, 0.0))
+                val next = java.time.YearMonth.from(due).plusMonths(1)
+                due = next.atDay(minOf(plan.dayOfMonth, next.lengthOfMonth()))
+                added++
+            }
+            if (added > 0) db.recurringDao().upsert(plan.copy(nextDue = due.toString()))
+        }
+    }
 
     // ---- Reminders -----------------------------------------------------------------------------
 

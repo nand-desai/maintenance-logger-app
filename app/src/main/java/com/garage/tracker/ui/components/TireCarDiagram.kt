@@ -33,7 +33,7 @@ private val spots = listOf(
 
 /**
  * Top-down car with four tappable wheels. Wheels take the colour of the season of the mounted set,
- * and a red badge shows how many punctures a wheel has had. Front of the car is at the top.
+ * a red badge shows how many punctures a wheel has had, and the latest tread depth (mm) is printed on each wheel. Front of the car is at the top.
  */
 @Composable
 fun TireCarDiagram(
@@ -41,6 +41,7 @@ fun TireCarDiagram(
     wheelColor: Color,
     centerIcon: ImageVector?,
     punctures: Map<String, Int>,
+    tread: Map<String, Double>,
     onWheelClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -71,7 +72,12 @@ fun TireCarDiagram(
                         .border(2.dp, Color.Black.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                         .clickable { onWheelClick(spot.id) },
                     contentAlignment = Alignment.Center,
-                ) { Text(spot.id, fontSize = 10.sp, color = Ink.copy(alpha = 0.75f), fontWeight = FontWeight.Bold) }
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(spot.id, fontSize = 10.sp, color = Ink.copy(alpha = 0.75f), fontWeight = FontWeight.Bold)
+                        tread[spot.id]?.let { Text("%.1f".format(it), fontSize = 10.sp, color = Ink, fontWeight = FontWeight.Bold) }
+                    }
+                }
                 val n = punctures[spot.id] ?: 0
                 if (n > 0) {
                     Box(

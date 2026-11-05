@@ -43,6 +43,7 @@ fun DashboardScreen(
     onRemind: (MaintenanceSchedule) -> Unit,
     onDeleteSchedule: (MaintenanceSchedule) -> Unit,
     onLogWash: () -> Unit,
+    onEditWash: (ExpenseLog) -> Unit,
     onDeleteWash: (ExpenseLog) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -80,7 +81,7 @@ fun DashboardScreen(
                 onEdit = { onEditSchedule(s) }, onDelete = { onDeleteSchedule(s) },
             )
         }
-        item { WashCard(washes, onLogWash, onDeleteWash) }
+        item { WashCard(washes, onLogWash, onEditWash, onDeleteWash) }
     }
 }
 
@@ -169,7 +170,7 @@ private fun MaintenanceCard(
 }
 
 @Composable
-private fun WashCard(washes: List<ExpenseLog>, onLog: () -> Unit, onDelete: (ExpenseLog) -> Unit) {
+private fun WashCard(washes: List<ExpenseLog>, onLog: () -> Unit, onEdit: (ExpenseLog) -> Unit, onDelete: (ExpenseLog) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     val last = washes.firstOrNull()
     val days = last?.let { runCatching { ChronoUnit.DAYS.between(LocalDate.parse(it.date), LocalDate.now()) }.getOrNull() }
@@ -202,6 +203,7 @@ private fun WashCard(washes: List<ExpenseLog>, onLog: () -> Unit, onDelete: (Exp
             washes.take(10).forEach { w ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("${w.date}  ·  ${money(w.cost)}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    IconButton(onClick = { onEdit(w) }) { Icon(Icons.Default.Edit, "Edit wash", tint = InkSoft) }
                     IconButton(onClick = { onDelete(w) }) { Icon(Icons.Default.DeleteOutline, "Delete wash", tint = InkSoft) }
                 }
             }

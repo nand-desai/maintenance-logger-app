@@ -1,5 +1,6 @@
 package com.garage.tracker.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -92,6 +93,48 @@ data class TireEvent(
     /** FL, FR, RL or RR for punctures. */
     val wheel: String?,
     val note: String,
+    @ColumnInfo(defaultValue = "0") val cost: Double = 0.0,
+    /** Tread depth in mm per wheel, for "Tread" measurements. */
+    val treadFl: Double? = null,
+    val treadFr: Double? = null,
+    val treadRl: Double? = null,
+    val treadRr: Double? = null,
+)
+
+@Entity(
+    tableName = "brake_entries",
+    foreignKeys = [ForeignKey(Vehicle::class, ["vehicleId"], ["vehicleId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("vehicleId")],
+)
+data class BrakeEntry(
+    @PrimaryKey val entryId: String,
+    val vehicleId: String,
+    val date: String,
+    val odometer: Int,
+    /** "Measured" or "Replaced". */
+    val type: String,
+    /** Pad thickness in mm, front and rear axle. */
+    val frontMm: Double?,
+    val rearMm: Double?,
+    @ColumnInfo(defaultValue = "0") val cost: Double = 0.0,
+    val note: String = "",
+)
+
+/** A fixed amount added to the expenses every month (e.g. insurance). */
+@Entity(
+    tableName = "recurring_expenses",
+    foreignKeys = [ForeignKey(Vehicle::class, ["vehicleId"], ["vehicleId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("vehicleId")],
+)
+data class RecurringExpense(
+    @PrimaryKey val recurringId: String,
+    val vehicleId: String,
+    val category: String,
+    val amount: Double,
+    val dayOfMonth: Int,
+    /** ISO date of the next payment that has not been added yet. */
+    val nextDue: String,
+    val active: Boolean,
 )
 
 object Categories {

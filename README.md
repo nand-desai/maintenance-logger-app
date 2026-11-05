@@ -24,12 +24,15 @@ Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Ca
 - **Car washes:** a Car wash card on the Garage screen shows when you last washed the car. Tap *Log wash* to add a date and price; tap the card for totals and recent washes. Washes count in your expenses.
 - **Health at a glance:** a status pill (green / amber / coral) and a progress bar for every maintenance item.
 - **Expenses:** lifetime cost, cost per km, fuel use (L/100 km), a category donut chart and a full history.
-- **Tires:** a top-down car whose wheels are coloured by season (sun for summer, snow for winter). Keep several tire sets, see which one is on the car and how many km each has done, and swap them in a tap. Log rotation, balancing, alignment and punctures. Tap a wheel to see its punctures. Care tiles show how long ago each service was done.
+- **Tires:** a top-down car whose wheels are coloured by season (sun for summer, snow for winter), with the latest tread depth printed on each wheel. Keep several tire sets, see which one is on the car and how many km each has done, and use **Swap tires** to switch (for example summer to winter) with the date, odometer and what it cost. Log rotation, balancing, alignment, punctures and tread depth in mm; Carlo shows wear per 1,000 km and an estimate of how far you can go before replacement. A swap counts as a rotation, so the Rotation tile stays green until it's time to swap again (winter tires mid-October to mid-April).
+- **Brakes:** log brake pad thickness in mm for the front and rear, and when new pads go on. Gauges turn green, amber and coral, with an estimate of the km left before ~3 mm.
+- **Monthly insurance:** Settings → *Monthly insurance*. Set the amount and the payment date and Carlo adds it to your expenses every month by itself, including any months that passed while the app was closed.
+- **Edit anything you logged:** expenses, car washes, tire events, brake entries and services all have an Edit button when you open their card.
 - **Reminders:** schedule a notification for any date and time, or tap *Remind me* on a maintenance card to pre-fill one. Reminders survive reboots.
 - **Settings:**
   - *App:* how close to due a service turns amber, the default reminder time, and backup/import.
   - *Vehicle:* photo, edit details, set odometer, add another vehicle, delete a vehicle.
-- **Backup and restore:** Settings → *Back up* opens the Android share sheet, so you can send the JSON file to Drive, Dropbox, email and so on. *Import* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Tire sets and history are included; photos aren't.
+- **Backup and restore:** Settings → *Back up* opens the Android share sheet, so you can send the JSON file to Drive, Dropbox, email and so on. *Import* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Tire sets, tread and brake history and the insurance plan are included; photos aren't.
 
 ## Build it yourself
 
