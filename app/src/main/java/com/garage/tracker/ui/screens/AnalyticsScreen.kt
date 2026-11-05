@@ -7,7 +7,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
@@ -29,6 +31,8 @@ import com.garage.tracker.ui.theme.*
 fun AnalyticsScreen(
     vehicle: Vehicle,
     logs: List<ExpenseLog>,
+    insurance: RecurringExpense?,
+    onInsurance: () -> Unit,
     onEdit: (ExpenseLog) -> Unit,
     onDelete: (ExpenseLog) -> Unit,
     modifier: Modifier = Modifier,
@@ -43,6 +47,26 @@ fun AnalyticsScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        item {
+            SoftCard(onClick = onInsurance) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(44.dp).background(Primary.copy(alpha = 0.16f), CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Shield, null, tint = Primary)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Insurance premium", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            insurance?.let {
+                                "${money(it.amount)} every month on day ${it.dayOfMonth}" + if (it.active) " · next ${it.nextDue}" else " · paused"
+                            } ?: "Add your monthly premium and Carlo logs it for you",
+                            color = InkSoft, style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Icon(if (insurance == null) Icons.Default.Add else Icons.Default.Edit, null, tint = InkSoft)
+                }
+            }
+        }
         item {
             SoftCard(onClick = { totalOpen = !totalOpen }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

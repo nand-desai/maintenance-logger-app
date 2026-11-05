@@ -37,7 +37,7 @@ fun MaintenanceScreen(
             val h = overallHealth(schedules, vehicle.currentOdometer, dueSoonKm).style()
             Pill(
                 if (schedules.isEmpty()) "No services tracked yet" else h.label,
-                if (schedules.isEmpty()) androidx.compose.ui.graphics.Color(0xFFEEF0FA) else h.bg,
+                if (schedules.isEmpty()) NeutralBg else h.bg,
                 if (schedules.isEmpty()) InkSoft else h.fg,
             )
         }

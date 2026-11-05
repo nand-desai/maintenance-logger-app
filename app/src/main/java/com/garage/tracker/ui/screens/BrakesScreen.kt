@@ -15,9 +15,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.garage.tracker.data.*
+import com.garage.tracker.ui.components.BrakePadVisual
 import com.garage.tracker.ui.theme.*
 
 /** Pad thickness colours: comfortable above 6 mm, getting low down to 3 mm, replace below that. */
+@Composable
 private fun padColors(mm: Double): Triple<Color, Color, String> = when {
     mm >= 6.0 -> Triple(MintBg, MintFg, "Good")
     mm >= BRAKE_REPLACE_MM -> Triple(AmberBg, AmberFg, "Getting low")
@@ -77,29 +79,31 @@ fun BrakesScreen(
 @Composable
 private fun Gauge(label: String, latest: BrakeEntry?, front: Boolean, all: List<BrakeEntry>, odometer: Int) {
     val mm = latest?.let { if (front) it.frontMm else it.rearMm }
+    val (bg, fg, word) = padColors(mm ?: 0.0)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-        if (mm == null) Text("—", color = InkSoft)
-        else {
-            val (bg, fg, word) = padColors(mm)
-            Pill("%.1f mm · $word".format(mm), bg, fg)
+        BrakePadVisual(mm, if (mm != null) fg else InkSoft, InkSoft.copy(alpha = 0.5f))
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                if (mm == null) Text("—", color = InkSoft) else Pill("%.1f mm · $word".format(mm), bg, fg)
+            }
+            if (mm != null && latest != null) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { (mm / BRAKE_NEW_MM).toFloat().coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(8.dp), color = fg, trackColor = bg, strokeCap = StrokeCap.Round,
+                )
+                Spacer(Modifier.height(6.dp))
+                val ago = (odometer - latest.odometer).coerceAtLeast(0)
+                val left = brakeKmLeft(all, front)
+                Text(
+                    "Measured ${latest.date}" + (if (ago > 0) " (${"%,d".format(ago)} km ago)" else "") +
+                        (left?.let { " · ≈ ${"%,d".format(it)} km until ${BRAKE_REPLACE_MM.toInt()} mm" } ?: ""),
+                    color = InkSoft, style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
-    }
-    if (mm != null && latest != null) {
-        val (bg, fg, _) = padColors(mm)
-        Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(
-            progress = { (mm / BRAKE_NEW_MM).toFloat().coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth().height(14.dp), color = fg, trackColor = bg, strokeCap = StrokeCap.Round,
-        )
-        Spacer(Modifier.height(6.dp))
-        val ago = (odometer - latest.odometer).coerceAtLeast(0)
-        val left = brakeKmLeft(all, front)
-        Text(
-            "Measured ${latest.date}" + (if (ago > 0) " (${"%,d".format(ago)} km ago)" else "") +
-                (left?.let { " · ≈ ${"%,d".format(it)} km until ${BRAKE_REPLACE_MM.toInt()} mm" } ?: ""),
-            color = InkSoft, style = MaterialTheme.typography.bodySmall,
-        )
     }
 }
 

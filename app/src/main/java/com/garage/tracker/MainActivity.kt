@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -54,7 +55,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ReminderScheduler.createChannel(this)
-        setContent { GarageTheme { GarageApp(vm) } }
+        setContent {
+            val settings by vm.settings.collectAsStateWithLifecycle()
+            GarageTheme(settings.themeMode) { GarageApp(vm) }
+        }
     }
 }
 
@@ -116,6 +120,19 @@ private fun GarageApp(vm: GarageViewModel) {
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(vm::importPhoto)
     }
+    fun keepAccess(uri: Uri) {
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
+    }
+    val backupFolderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let { keepAccess(it); vm.setBackupFolder(it) }
+    }
+    val restoreFolderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let { keepAccess(it); vm.restoreFromFolder(it) }
+    }
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) vm.say("Notifications are blocked, so reminders won't show. Enable them in system settings.")
     }
@@ -140,6 +157,7 @@ private fun GarageApp(vm: GarageViewModel) {
             LandingScreen(
                 onAdd = { dialog = "addVehicle" },
                 onImport = { importPicker.launch(arrayOf("*/*")) },
+                onRestoreFolder = { restoreFolderPicker.launch(null) },
                 modifier = Modifier.padding(pad),
             )
         }
@@ -167,7 +185,7 @@ private fun GarageApp(vm: GarageViewModel) {
                     )
                 },
                 bottomBar = {
-                    NavigationBar(containerColor = Color.White) {
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                         NavigationBarItem(
                             screen != "reminders" && screen != "settings", { screen = "home" },
                             { Icon(Icons.Default.Home, null) }, label = { Text("Home") },
@@ -227,6 +245,8 @@ private fun GarageApp(vm: GarageViewModel) {
                             onEditOdometer = { dialog = "odometer" },
                             onPickPhoto = ::pickPhoto,
                             onOpen = { screen = it },
+                            backupOn = settings.backupUri != null,
+                            onSetupBackup = { screen = "settings" },
                         )
                         "maintenance" -> MaintenanceScreen(
                             vehicle = active, schedules = schedules, dueSoonKm = settings.dueSoonKm,
@@ -243,7 +263,10 @@ private fun GarageApp(vm: GarageViewModel) {
                             },
                             onDeleteSchedule = vm::deleteSchedule,
                         )
-                        "expenses" -> AnalyticsScreen(active, logs, onEdit = { editingExpense = it; dialog = "entry" }, onDelete = vm::deleteExpense)
+                        "expenses" -> AnalyticsScreen(
+                            active, logs, insurance = insurancePlan, onInsurance = { dialog = "insurance" },
+                            onEdit = { editingExpense = it; dialog = "entry" }, onDelete = vm::deleteExpense,
+                        )
                         "tires" -> TiresScreen(
                             vehicle = active, sets = tireSets, events = tireEvents,
                             onAddSet = { editingSet = null; dialog = "tireSet" },
@@ -273,6 +296,10 @@ private fun GarageApp(vm: GarageViewModel) {
                             onDueSoonChange = vm::setDueSoonKm, onReminderHourChange = vm::setReminderHour,
                             onBackup = { scope.launch { shareBackup(context, vm.createBackupFile()) } },
                             onImport = { importPicker.launch(arrayOf("*/*")) },
+                            onThemeChange = vm::setThemeMode,
+                            onChooseBackupFolder = { backupFolderPicker.launch(null) },
+                            onBackupNow = vm::backupNow,
+                            onStopAutoBackup = vm::stopAutoBackup,
                             onAddVehicle = { dialog = "addVehicle" },
                             onEditVehicle = { dialog = "editVehicle" },
                             onSetOdometer = { dialog = "odometer" },
@@ -289,9 +316,9 @@ private fun GarageApp(vm: GarageViewModel) {
     }
 
     when (dialog) {
-        "addVehicle" -> VehicleDialog(null, { dialog = null }, vm::addVehicle)
+        "addVehicle" -> VehicleDialog(null, settings.savedColors, vm::addSavedColor, vm::removeSavedColor, { dialog = null }, vm::addVehicle)
         "editVehicle" -> active?.let { v ->
-            VehicleDialog(v, { dialog = null }) { make, model, year, odo, color ->
+            VehicleDialog(v, settings.savedColors, vm::addSavedColor, vm::removeSavedColor, { dialog = null }) { make, model, year, odo, color ->
                 vm.updateVehicle(v.copy(make = make, model = model, year = year, currentOdometer = odo, colorHex = color))
             }
         }

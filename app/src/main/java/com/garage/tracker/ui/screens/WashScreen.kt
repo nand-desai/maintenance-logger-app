@@ -16,6 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.garage.tracker.data.ExpenseLog
 import com.garage.tracker.ui.theme.InkSoft
+import com.garage.tracker.ui.theme.SkyBg
+import com.garage.tracker.ui.theme.SkyFg
 
 @Composable
 fun WashScreen(
@@ -33,8 +35,8 @@ fun WashScreen(
         item {
             SoftCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(52.dp).background(Color(0xFFDCEEFF), CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.LocalCarWash, null, tint = Color(0xFF2B6CB0), modifier = Modifier.size(28.dp))
+                    Box(Modifier.size(52.dp).background(SkyBg, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.LocalCarWash, null, tint = SkyFg, modifier = Modifier.size(28.dp))
                     }
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.weight(1f)) {

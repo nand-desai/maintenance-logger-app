@@ -20,7 +20,7 @@ object Backup {
                 "$tireSets tire sets, $tireEvents tire events, $brakeEntries brake entries"
     }
 
-    suspend fun toJson(db: GarageDatabase): String {
+    suspend fun toJson(db: GarageDatabase, settings: JSONObject? = null): String {
         val root = JSONObject()
             .put("app", APP)
             .put("version", FORMAT_VERSION)
@@ -64,6 +64,7 @@ object Backup {
             JSONObject().put("recurring_id", it.recurringId).put("vehicle_id", it.vehicleId).put("category", it.category)
                 .put("amount", it.amount).put("day_of_month", it.dayOfMonth).put("next_due", it.nextDue).put("active", it.active)
         }))
+        if (settings != null) root.put("settings", settings)
         return root.toString(2)
     }
 

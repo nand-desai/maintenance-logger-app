@@ -22,7 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.garage.tracker.ui.theme.CoralFg
-import com.garage.tracker.ui.theme.Ink
+
+private val WheelInk = Color(0xFF1F2430)
 
 private data class WheelSpot(val id: String, val x: Int, val y: Int)
 
@@ -74,8 +75,8 @@ fun TireCarDiagram(
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(spot.id, fontSize = 10.sp, color = Ink.copy(alpha = 0.75f), fontWeight = FontWeight.Bold)
-                        tread[spot.id]?.let { Text("%.1f".format(it), fontSize = 10.sp, color = Ink, fontWeight = FontWeight.Bold) }
+                        Text(spot.id, fontSize = 10.sp, color = WheelInk.copy(alpha = 0.75f), fontWeight = FontWeight.Bold)
+                        tread[spot.id]?.let { Text("%.1f".format(it), fontSize = 10.sp, color = WheelInk, fontWeight = FontWeight.Bold) }
                     }
                 }
                 val n = punctures[spot.id] ?: 0

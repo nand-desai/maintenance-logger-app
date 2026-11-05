@@ -18,6 +18,14 @@ interface VehicleDao {
     @Query("SELECT COUNT(*) FROM vehicles")
     suspend fun count(): Int
 
+    /** Emits again whenever anything in the garage changes (used to trigger automatic backups). */
+    @Query(
+        "SELECT (SELECT COUNT(*) FROM vehicles) + (SELECT COUNT(*) FROM maintenance_schedules) + " +
+            "(SELECT COUNT(*) FROM expense_logs) + (SELECT COUNT(*) FROM reminders) + (SELECT COUNT(*) FROM tire_sets) + " +
+            "(SELECT COUNT(*) FROM tire_events) + (SELECT COUNT(*) FROM brake_entries) + (SELECT COUNT(*) FROM recurring_expenses)",
+    )
+    fun changeTick(): Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(vehicle: Vehicle)
 

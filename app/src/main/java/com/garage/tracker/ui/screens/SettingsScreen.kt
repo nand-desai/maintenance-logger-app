@@ -11,6 +11,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.net.Uri
+import android.text.format.DateUtils
+import androidx.compose.ui.platform.LocalContext
+import androidx.documentfile.provider.DocumentFile
 import com.garage.tracker.data.AppSettings
 import com.garage.tracker.data.RecurringExpense
 import com.garage.tracker.data.Vehicle
@@ -23,6 +27,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     vehicle: Vehicle,
@@ -33,6 +38,10 @@ fun SettingsScreen(
     onReminderHourChange: (Int) -> Unit,
     onBackup: () -> Unit,
     onImport: () -> Unit,
+    onThemeChange: (String) -> Unit,
+    onChooseBackupFolder: () -> Unit,
+    onBackupNow: () -> Unit,
+    onStopAutoBackup: () -> Unit,
     onAddVehicle: () -> Unit,
     onEditVehicle: () -> Unit,
     onSetOdometer: () -> Unit,
@@ -49,6 +58,21 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { Section("App settings", "Apply to every vehicle") }
+        item {
+            SoftCard {
+                Text("Appearance", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                val modes = listOf("system" to "System", "light" to "Light", "dark" to "Dark")
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    modes.forEachIndexed { i, (key, label) ->
+                        SegmentedButton(
+                            selected = settings.themeMode == key, onClick = { onThemeChange(key) },
+                            shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                        ) { Text(label) }
+                    }
+                }
+            }
+        }
         item {
             SoftCard {
                 Text("Due-soon warning", fontWeight = FontWeight.SemiBold)
@@ -69,6 +93,34 @@ fun SettingsScreen(
                     onValueChange = { onReminderHourChange(it.roundToInt()) },
                     valueRange = 0f..23f, steps = 22,
                 )
+            }
+        }
+        item {
+            val context = LocalContext.current
+            val folderName = settings.backupUri?.let { runCatching { DocumentFile.fromTreeUri(context, Uri.parse(it))?.name }.getOrNull() }
+            SoftCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudUpload, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Automatic backup", fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    if (settings.backupUri == null)
+                        "Pick a folder (for example Documents) and Carlo saves everything there after every change: your vehicles, history, photos and settings. It stays on your phone when Carlo is uninstalled, and you can restore it from the welcome screen after reinstalling."
+                    else "Saving to ${folderName ?: "your chosen folder"}" +
+                        (if (settings.lastBackup > 0) " · last saved ${DateUtils.getRelativeTimeSpanString(settings.lastBackup, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)}" else ""),
+                    color = InkSoft, style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+                if (settings.backupUri == null) {
+                    Button(onClick = onChooseBackupFolder, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Choose backup folder") }
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onBackupNow, modifier = Modifier.weight(1f)) { Text("Back up now") }
+                        OutlinedButton(onClick = onChooseBackupFolder, modifier = Modifier.weight(1f)) { Text("Change folder") }
+                    }
+                    TextButton(onClick = onStopAutoBackup) { Text("Turn off automatic backup") }
+                }
             }
         }
         item {

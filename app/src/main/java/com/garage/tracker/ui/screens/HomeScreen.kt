@@ -1,14 +1,11 @@
 package com.garage.tracker.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,7 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import com.garage.tracker.data.*
 import com.garage.tracker.ui.components.VehiclePhoto
 import com.garage.tracker.ui.theme.*
-import kotlinx.coroutines.delay
 import java.io.File
 
 /** The landing hub: the car, what needs attention, and a tile for every section. */
@@ -55,6 +51,8 @@ fun HomeScreen(
     onEditOdometer: () -> Unit,
     onPickPhoto: () -> Unit,
     onOpen: (String) -> Unit,
+    backupOn: Boolean,
+    onSetupBackup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val alerts = buildAlerts(vehicle, schedules, dueSoonKm, tireSets, tireEvents, brakes)
@@ -70,7 +68,20 @@ fun HomeScreen(
         item(span = { GridItemSpan(maxLineSpan) }) { VehiclePhoto(photoFile, photoVersion, onPickPhoto) }
         item(span = { GridItemSpan(maxLineSpan) }) { GarageHeader(vehicle, vehicles, onSelectVehicle, onAddVehicle, onEditOdometer) }
         item(span = { GridItemSpan(maxLineSpan) }) { AttentionBanner(alerts, onOpen) }
-        itemsIndexed(tiles, key = { _, t -> t.id }) { index, tile -> HomeTile(tile, index) { onOpen(tile.id) } }
+        items(tiles, key = { it.id }) { tile -> HomeTile(tile) { onOpen(tile.id) } }
+        if (!backupOn) item(span = { GridItemSpan(maxLineSpan) }) {
+            SoftCard(onClick = onSetupBackup) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudUpload, null, tint = Primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Keep your data safe", fontWeight = FontWeight.SemiBold)
+                        Text("Pick a backup folder so it survives reinstalling Carlo.", color = InkSoft, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Icon(Icons.Default.ChevronRight, null, tint = InkSoft)
+                }
+            }
+        }
     }
 }
 
@@ -108,43 +119,38 @@ private fun AttentionBanner(alerts: List<Alert>, onOpen: (String) -> Unit) {
     }
 }
 
-/** A section tile: fades and slides in one after another, and dips slightly when pressed. */
+/** A section tile. It dips slightly while pressed; there is no entrance animation. */
 @Composable
-private fun HomeTile(tile: TileInfo, index: Int, onClick: () -> Unit) {
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { delay(70L * index); shown = true }
-
+private fun HomeTile(tile: TileInfo, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.96f else 1f, spring(stiffness = Spring.StiffnessMediumLow), label = "press")
     val (_, statusColor) = levelColors(tile.level)
 
-    AnimatedVisibility(shown, enter = fadeIn(tween(350)) + slideInVertically(tween(350)) { it / 6 }) {
-        Card(
-            onClick = onClick,
-            interactionSource = interaction,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 138.dp).graphicsLayer { scaleX = scale; scaleY = scale },
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        ) {
-            Column(Modifier.padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Box(Modifier.size(44.dp).background(tile.accentBg, CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(tile.icon, null, tint = tile.accent)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    if (tile.level != Level.Neutral) Box(Modifier.padding(top = 4.dp).size(10.dp).background(statusColor, CircleShape))
+    Card(
+        onClick = onClick,
+        interactionSource = interaction,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 138.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(Modifier.padding(16.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Box(Modifier.size(44.dp).background(tile.accent.copy(alpha = 0.16f), CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(tile.icon, null, tint = tile.accent)
                 }
-                Spacer(Modifier.height(12.dp))
-                Column {
-                    Text(tile.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        tile.status, style = MaterialTheme.typography.bodySmall,
-                        color = if (tile.level == Level.Neutral) InkSoft else statusColor,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Spacer(Modifier.weight(1f))
+                if (tile.level != Level.Neutral) Box(Modifier.padding(top = 4.dp).size(10.dp).background(statusColor, CircleShape))
+            }
+            Spacer(Modifier.height(12.dp))
+            Column {
+                Text(tile.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    tile.status, style = MaterialTheme.typography.bodySmall,
+                    color = if (tile.level == Level.Neutral) InkSoft else statusColor,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

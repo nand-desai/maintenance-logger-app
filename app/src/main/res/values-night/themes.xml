@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.GarageTracker" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#12141C</item>
+        <item name="android:statusBarColor">#12141C</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

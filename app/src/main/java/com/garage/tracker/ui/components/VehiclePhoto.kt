@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.garage.tracker.ui.theme.InkSoft
+import com.garage.tracker.ui.theme.NeutralBg
 import com.garage.tracker.ui.theme.Primary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,7 +55,7 @@ fun VehiclePhoto(
     val bmp = bitmap
 
     if (bmp == null) {
-        Box(frame.background(Color(0xFFEEF0FA)), contentAlignment = Alignment.Center) {
+        Box(frame.background(NeutralBg), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.DirectionsCar, null, tint = Primary, modifier = Modifier.size(40.dp))
                 Text("Add a photo of your car", color = InkSoft)

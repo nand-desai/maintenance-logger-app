@@ -5,6 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import org.json.JSONObject
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,7 +24,7 @@ import java.io.File
 import java.time.LocalDate
 import java.util.UUID
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class GarageViewModel(app: Application) : AndroidViewModel(app) {
     private val db = GarageDatabase.get(app)
     private val scheduler = ReminderScheduler(app)
@@ -280,7 +284,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun createBackupFile(): File = withContext(Dispatchers.IO) {
         val dir = File(getApplication<Application>().cacheDir, "backups").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
-        File(dir, "carlo-backup-${LocalDate.now()}.json").also { it.writeText(Backup.toJson(db)) }
+        File(dir, "carlo-backup-${LocalDate.now()}.json").also { it.writeText(Backup.toJson(db, settingsStore.toJson())) }
     }
 
     fun importBackup(uri: Uri) = viewModelScope.launch {
@@ -289,6 +293,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                 getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
             }
             val counts = Backup.restore(db, text)
+            settingsStore.applyBackup(runCatching { JSONObject(text).optJSONObject("settings") }.getOrNull())
             scheduler.scheduleAll(db.reminderDao().getAll())
             "Imported $counts"
         }.getOrElse { "Import failed: ${it.message ?: "unreadable file"}" }
@@ -348,6 +353,7 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             _photoVersion.value++
+            backupTrigger.tryEmit(Unit)
             "Photo updated"
         }.getOrElse { "Couldn't use that picture: ${it.message}" }
     }
@@ -360,8 +366,109 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Settings ------------------------------------------------------------------------------
 
-    fun setDueSoonKm(km: Int) = settingsStore.setDueSoonKm(km)
-    fun setReminderHour(hour: Int) = settingsStore.setReminderHour(hour)
+    fun setDueSoonKm(km: Int) { settingsStore.setDueSoonKm(km); backupTrigger.tryEmit(Unit) }
+    fun setReminderHour(hour: Int) { settingsStore.setReminderHour(hour); backupTrigger.tryEmit(Unit) }
+    fun setThemeMode(mode: String) { settingsStore.setThemeMode(mode); backupTrigger.tryEmit(Unit) }
+    fun addSavedColor(hex: String) { settingsStore.addSavedColor(hex); backupTrigger.tryEmit(Unit) }
+    fun removeSavedColor(hex: String) { settingsStore.removeSavedColor(hex); backupTrigger.tryEmit(Unit) }
+
+    // ---- Automatic backup to a folder that survives uninstalling --------------------------------
+
+    private val backupTrigger = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
+    private val photoStamps = mutableMapOf<String, Long>()
+    private var warnedBackupFailure = false
+
+    init {
+        viewModelScope.launch {
+            merge(db.vehicleDao().changeTick().map { }, backupTrigger)
+                .debounce(3000)
+                .collect { runAutoBackup() }
+        }
+    }
+
+    /** Starts saving to [uri]. On a fresh install with a backup already in the folder, restores it instead. */
+    fun setBackupFolder(uri: Uri) = viewModelScope.launch {
+        val hasBackup = withContext(Dispatchers.IO) {
+            DocumentFile.fromTreeUri(getApplication(), uri)?.findFile(BACKUP_FILE) != null
+        }
+        if (hasBackup && db.vehicleDao().count() == 0) {
+            restoreFromFolder(uri).join()
+        } else {
+            settingsStore.setBackupUri(uri.toString())
+            photoStamps.clear()
+            warnedBackupFailure = false
+            if (runAutoBackup()) _message.value = "Automatic backup is on"
+        }
+    }
+
+    fun stopAutoBackup() {
+        settingsStore.setBackupUri(null)
+        _message.value = "Automatic backup is off"
+    }
+
+    fun backupNow() = viewModelScope.launch {
+        if (settingsStore.state.value.backupUri == null) { _message.value = "Choose a backup folder first"; return@launch }
+        if (runAutoBackup()) _message.value = "Backed up just now"
+    }
+
+    /** Writes carlo-backup.json (and vehicle photos) into the chosen folder. Never overwrites a backup with an empty garage. */
+    private suspend fun runAutoBackup(): Boolean {
+        val uri = settingsStore.state.value.backupUri ?: return false
+        if (db.vehicleDao().count() == 0) return false
+        return runCatching {
+            withContext(Dispatchers.IO) {
+                val app = getApplication<Application>()
+                val tree = DocumentFile.fromTreeUri(app, Uri.parse(uri)) ?: error("the folder is no longer available")
+                check(tree.canWrite()) { "Carlo lost access to the folder" }
+                writeDoc(tree, BACKUP_FILE, "application/json", Backup.toJson(db, settingsStore.toJson()).toByteArray())
+                db.vehicleDao().getAll().forEach { v ->
+                    val f = photoFile(v.vehicleId)
+                    if (f.exists() && photoStamps[v.vehicleId] != f.lastModified()) {
+                        writeDoc(tree, "carlo-photo-${v.vehicleId}.jpg", "image/jpeg", f.readBytes())
+                        photoStamps[v.vehicleId] = f.lastModified()
+                    }
+                }
+            }
+            settingsStore.setLastBackup(System.currentTimeMillis())
+            true
+        }.getOrElse {
+            if (!warnedBackupFailure) { warnedBackupFailure = true; _message.value = "Automatic backup failed: ${it.message}" }
+            false
+        }
+    }
+
+    private fun writeDoc(tree: DocumentFile, name: String, mime: String, bytes: ByteArray) {
+        val file = tree.findFile(name) ?: tree.createFile(mime, name) ?: error("couldn't create $name")
+        getApplication<Application>().contentResolver.openOutputStream(file.uri, "wt")!!.use { it.write(bytes) }
+    }
+
+    /** Restores everything (data, photos, settings) from a folder written by automatic backup. */
+    fun restoreFromFolder(uri: Uri) = viewModelScope.launch {
+        _message.value = runCatching {
+            val app = getApplication<Application>()
+            val tree = DocumentFile.fromTreeUri(app, uri) ?: error("couldn't open that folder")
+            val doc = tree.findFile(BACKUP_FILE) ?: error("there's no $BACKUP_FILE in that folder")
+            val text = withContext(Dispatchers.IO) {
+                app.contentResolver.openInputStream(doc.uri)!!.bufferedReader().use { it.readText() }
+            }
+            val counts = Backup.restore(db, text)
+            settingsStore.applyBackup(runCatching { JSONObject(text).optJSONObject("settings") }.getOrNull())
+            withContext(Dispatchers.IO) {
+                db.vehicleDao().getAll().forEach { v ->
+                    tree.findFile("carlo-photo-${v.vehicleId}.jpg")?.let { d ->
+                        val target = photoFile(v.vehicleId).also { it.parentFile?.mkdirs() }
+                        app.contentResolver.openInputStream(d.uri)!!.use { input -> target.outputStream().use { input.copyTo(it) } }
+                    }
+                }
+            }
+            _photoVersion.value++
+            scheduler.scheduleAll(db.reminderDao().getAll())
+            settingsStore.setBackupUri(uri.toString())
+            "Restored $counts"
+        }.getOrElse { "Restore failed: ${it.message}" }
+    }
+
+    private companion object { const val BACKUP_FILE = "carlo-backup.json" }
 
     private fun newId(prefix: String) = "${prefix}_${UUID.randomUUID().toString().take(8)}"
 }

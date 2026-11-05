@@ -35,6 +35,7 @@ fun SoftCard(
 
 data class HealthStyle(val label: String, val bg: Color, val fg: Color)
 
+@Composable
 fun Health.style() = when (this) {
     Health.Healthy -> HealthStyle("All services healthy", MintBg, MintFg)
     Health.DueSoon -> HealthStyle("Service due soon", AmberBg, AmberFg)
@@ -58,7 +59,7 @@ fun DetailRow(label: String, value: String) {
 }
 
 fun parseColor(hex: String): Color =
-    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Primary)
+    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(BrandBlue)
 
 private val cad: java.text.NumberFormat =
     java.text.NumberFormat.getCurrencyInstance(java.util.Locale("en", "CA"))

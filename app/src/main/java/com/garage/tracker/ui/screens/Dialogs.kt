@@ -8,7 +8,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -93,14 +100,26 @@ fun AddEntryDialog(
 
 private val vehicleColors = listOf("#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#6B7280")
 
+private fun Color.toHex() = "#%06X".format(0xFFFFFF and toArgb())
+
 /** Add a vehicle, or edit one when [initial] is given. Nothing is pre-filled for a new vehicle. */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun VehicleDialog(initial: Vehicle?, onDismiss: () -> Unit, onSave: (make: String, model: String, year: Int, odometer: Int, color: String) -> Unit) {
+fun VehicleDialog(
+    initial: Vehicle?,
+    savedColors: List<String>,
+    onSaveColor: (String) -> Unit,
+    onRemoveColor: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (make: String, model: String, year: Int, odometer: Int, color: String) -> Unit,
+) {
     var make by remember { mutableStateOf(initial?.make ?: "") }
     var model by remember { mutableStateOf(initial?.model ?: "") }
     var year by remember { mutableStateOf(initial?.year?.toString() ?: "") }
     var odo by remember { mutableStateOf(initial?.currentOdometer?.toString() ?: "") }
     var color by remember { mutableStateOf(initial?.colorHex ?: vehicleColors.first()) }
+    var picking by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Add vehicle" else "Edit vehicle") },
@@ -111,14 +130,29 @@ fun VehicleDialog(initial: Vehicle?, onDismiss: () -> Unit, onSave: (make: Strin
                 Field(year, { year = it }, "Year", num)
                 Field(odo, { odo = it }, "Current odometer (km)", num)
                 Text("Colour tag", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    vehicleColors.forEach { hex ->
+                val palette = (vehicleColors + savedColors).distinctBy { it.uppercase() }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    palette.forEach { hex ->
+                        val isSaved = savedColors.any { it.equals(hex, true) } && vehicleColors.none { it.equals(hex, true) }
                         Box(
                             Modifier.size(34.dp).clip(CircleShape).background(parseColor(hex))
-                                .border(if (hex == color) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                .clickable { color = hex },
+                                .border(if (hex.equals(color, true)) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                .combinedClickable(onClick = { color = hex }, onLongClick = { if (isSaved) onRemoveColor(hex) }),
                         )
                     }
+                    if (palette.none { it.equals(color, true) }) {
+                        Box(Modifier.size(34.dp).clip(CircleShape).background(parseColor(color)).border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape))
+                    }
+                    // "pick your own", always last
+                    Box(
+                        Modifier.size(34.dp).clip(CircleShape)
+                            .background(Brush.sweepGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)))
+                            .clickable { picking = true },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Default.Add, "Pick your own colour", tint = Color.White, modifier = Modifier.size(18.dp)) }
+                }
+                if (savedColors.isNotEmpty()) {
+                    Text("Long-press a saved colour to remove it.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -128,6 +162,53 @@ fun VehicleDialog(initial: Vehicle?, onDismiss: () -> Unit, onSave: (make: Strin
                 onClick = { onSave(make.trim(), model.trim(), year.toInt(), odo.toInt(), color); onDismiss() },
             ) { Text("Save") }
         },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    )
+
+    if (picking) {
+        CustomColorDialog(
+            initialHex = color,
+            onDismiss = { picking = false },
+            onUse = { hex, save -> color = hex; if (save) onSaveColor(hex); picking = false },
+        )
+    }
+}
+
+/** Hue / saturation / brightness sliders with a live preview. Optionally saves the colour to "my colours". */
+@Composable
+fun CustomColorDialog(initialHex: String, onDismiss: () -> Unit, onUse: (hex: String, save: Boolean) -> Unit) {
+    val start = remember {
+        FloatArray(3).also { android.graphics.Color.colorToHSV(parseColor(initialHex).toArgb(), it) }
+    }
+    var hue by remember { mutableFloatStateOf(start[0]) }
+    var sat by remember { mutableFloatStateOf(start[1].coerceAtLeast(0.2f)) }
+    var value by remember { mutableFloatStateOf(start[2].coerceAtLeast(0.3f)) }
+    var save by remember { mutableStateOf(true) }
+    val picked = Color.hsv(hue, sat, value)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pick your own colour") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(56.dp).clip(CircleShape).background(picked))
+                    Spacer(Modifier.width(16.dp))
+                    Text(picked.toHex(), style = MaterialTheme.typography.titleMedium)
+                }
+                Text("Colour", style = MaterialTheme.typography.labelMedium)
+                Slider(hue, { hue = it }, valueRange = 0f..360f)
+                Text("Richness", style = MaterialTheme.typography.labelMedium)
+                Slider(sat, { sat = it }, valueRange = 0f..1f)
+                Text("Brightness", style = MaterialTheme.typography.labelMedium)
+                Slider(value, { value = it }, valueRange = 0f..1f)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(save, { save = it })
+                    Text("Save to my colours")
+                }
+            }
+        },
+        confirmButton = { TextButton({ onUse(picked.toHex(), save) }) { Text("Use colour") } },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
     )
 }

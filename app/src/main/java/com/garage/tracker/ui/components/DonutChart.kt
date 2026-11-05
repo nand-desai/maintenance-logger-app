@@ -2,6 +2,7 @@ package com.garage.tracker.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -15,7 +16,7 @@ import androidx.compose.ui.unit.dp
 data class Slice(val label: String, val value: Double, val color: Color)
 
 @Composable
-fun DonutChart(slices: List<Slice>, size: Dp = 160.dp, thickness: Dp = 26.dp, trackColor: Color = Color(0xFFEEF0FA)) {
+fun DonutChart(slices: List<Slice>, size: Dp = 160.dp, thickness: Dp = 26.dp, trackColor: Color = MaterialTheme.colorScheme.surfaceVariant) {
     val total = slices.sumOf { it.value }
     Canvas(Modifier.size(size)) {
         val stroke = thickness.toPx()

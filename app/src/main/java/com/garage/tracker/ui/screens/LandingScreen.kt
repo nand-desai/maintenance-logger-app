@@ -20,7 +20,7 @@ import com.garage.tracker.ui.theme.Primary
 
 /** Shown while the garage is empty: a warm welcome and a clear first step. */
 @Composable
-fun LandingScreen(onAdd: () -> Unit, onImport: () -> Unit, modifier: Modifier = Modifier) {
+fun LandingScreen(onAdd: () -> Unit, onImport: () -> Unit, onRestoreFolder: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier.fillMaxSize().padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -50,7 +50,8 @@ fun LandingScreen(onAdd: () -> Unit, onImport: () -> Unit, modifier: Modifier = 
             Spacer(Modifier.width(8.dp))
             Text("Add your first vehicle")
         }
-        TextButton(onClick = onImport) { Text("Restore from a backup") }
+        OutlinedButton(onClick = onRestoreFolder, modifier = Modifier.fillMaxWidth()) { Text("Restore from my backup folder") }
+        TextButton(onClick = onImport) { Text("Restore from a backup file") }
     }
 }
 

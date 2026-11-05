@@ -2,6 +2,7 @@ package com.garage.tracker.ui.screens
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.garage.tracker.data.*
@@ -15,11 +16,12 @@ import java.time.temporal.ChronoUnit
 /** How a tile or alert should be coloured. */
 enum class Level { Good, Warn, Bad, Neutral }
 
+@Composable
 fun levelColors(level: Level): Pair<Color, Color> = when (level) {
     Level.Good -> MintBg to MintFg
     Level.Warn -> AmberBg to AmberFg
     Level.Bad -> CoralBg to CoralFg
-    Level.Neutral -> Color(0xFFEEF0FA) to InkSoft
+    Level.Neutral -> NeutralBg to InkSoft
 }
 
 data class TileInfo(
@@ -29,7 +31,6 @@ data class TileInfo(
     val level: Level,
     val icon: ImageVector,
     val accent: Color,
-    val accentBg: Color,
 )
 
 /** Something that needs attention; [target] is the section that fixes it. */
@@ -158,11 +159,11 @@ fun buildTiles(
     val upcoming = reminders.filter { it.triggerAt > now }.minByOrNull { it.triggerAt }
 
     return listOf(
-        TileInfo("maintenance", "Maintenance", maintStatus, maintLevel, Icons.Default.Build, Primary, Color(0xFFE3EAFF)),
-        TileInfo("expenses", "Expenses", if (spent > 0) "${money(spent, 0)} this month" else "Nothing yet this month", Level.Neutral, Icons.Default.DonutLarge, Color(0xFF8B5CF6), Color(0xFFEDE4FF)),
-        TileInfo("tires", "Tires", tireStatus, tireLevel, Icons.Default.TireRepair, Color(0xFF1FA58A), Color(0xFFDDF5EE)),
-        TileInfo("brakes", "Brakes", brakeStatus, brakeLevel, Icons.Default.Album, Color(0xFFE8793B), Color(0xFFFDE8DA)),
-        TileInfo("wash", "Car wash", washSummary(washes), Level.Neutral, Icons.Default.LocalCarWash, Color(0xFF2B6CB0), Color(0xFFDCEEFF)),
-        TileInfo("reminders", "Reminders", upcoming?.let { "${it.title} ${inDays(it.triggerAt)}" } ?: "Nothing scheduled", Level.Neutral, Icons.Default.Notifications, Color(0xFFD6457F), Color(0xFFFFE6F0)),
+        TileInfo("maintenance", "Maintenance", maintStatus, maintLevel, Icons.Default.Build, BrandBlue),
+        TileInfo("expenses", "Expenses", if (spent > 0) "${money(spent, 0)} this month" else "Nothing yet this month", Level.Neutral, Icons.Default.DonutLarge, Color(0xFF8B5CF6)),
+        TileInfo("tires", "Tires", tireStatus, tireLevel, Icons.Default.TireRepair, Color(0xFF1FA58A)),
+        TileInfo("brakes", "Brakes", brakeStatus, brakeLevel, Icons.Default.Album, Color(0xFFE8793B)),
+        TileInfo("wash", "Car wash", washSummary(washes), Level.Neutral, Icons.Default.LocalCarWash, Color(0xFF2B8CD6)),
+        TileInfo("reminders", "Reminders", upcoming?.let { "${it.title} ${inDays(it.triggerAt)}" } ?: "Nothing scheduled", Level.Neutral, Icons.Default.Notifications, Color(0xFFD6457F)),
     )
 }

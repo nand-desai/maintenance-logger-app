@@ -27,11 +27,12 @@ import java.time.LocalDate
 
 data class SeasonStyle(val color: Color, val bg: Color, val fg: Color, val icon: ImageVector)
 
+@Composable
 fun seasonStyle(season: String?) = when (season) {
     Seasons.SUMMER -> SeasonStyle(Color(0xFFFFB84D), AmberBg, AmberFg, Icons.Default.WbSunny)
-    Seasons.WINTER -> SeasonStyle(Color(0xFF6BB8FF), Color(0xFFDCEEFF), Color(0xFF2B6CB0), Icons.Default.AcUnit)
+    Seasons.WINTER -> SeasonStyle(Color(0xFF6BB8FF), SkyBg, SkyFg, Icons.Default.AcUnit)
     Seasons.ALL_SEASON -> SeasonStyle(Color(0xFF6FCF97), MintBg, MintFg, Icons.Default.Cloud)
-    else -> SeasonStyle(Color(0xFFC9CEDD), Color(0xFFEEF0FA), InkSoft, Icons.Default.DirectionsCar)
+    else -> SeasonStyle(Color(0xFFC9CEDD), NeutralBg, InkSoft, Icons.Default.DirectionsCar)
 }
 
 private fun eventIcon(type: String) = when (type) {
@@ -44,6 +45,7 @@ private fun eventIcon(type: String) = when (type) {
 }
 
 /** Green / amber / coral colours for a tread depth in mm. */
+@Composable
 fun treadColors(mm: Double): Pair<Color, Color> = when {
     mm >= 4.0 -> MintBg to MintFg
     mm >= TREAD_REPLACE_MM -> AmberBg to AmberFg
@@ -287,7 +289,7 @@ private fun RotationTile(events: List<TireEvent>, mounted: TireSet?, odometer: I
     }
     val due = swapDue(mounted, LocalDate.now())
     val (bg, fg) = when {
-        last == null -> Color(0xFFEEF0FA) to InkSoft
+        last == null -> NeutralBg to InkSoft
         due -> AmberBg to AmberFg
         else -> MintBg to MintFg
     }
@@ -312,7 +314,7 @@ private fun CareTile(type: String, last: TireEvent?, odometer: Int, modifier: Mo
     val since = last?.let { (odometer - it.odometer).coerceAtLeast(0) }
     val ratio = since?.let { it.toFloat() / careIntervalKm(type) }
     val (bg, fg) = when {
-        ratio == null -> Color(0xFFEEF0FA) to InkSoft
+        ratio == null -> NeutralBg to InkSoft
         ratio < 0.8f -> MintBg to MintFg
         ratio < 1f -> AmberBg to AmberFg
         else -> CoralBg to CoralFg

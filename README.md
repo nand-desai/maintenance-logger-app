@@ -26,12 +26,15 @@ Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Ca
 - **Expenses:** lifetime cost, cost per km, fuel use (L/100 km), a category donut chart and a full history.
 - **Tires:** a top-down car whose wheels are coloured by season (sun for summer, snow for winter), with the latest tread depth printed on each wheel. Keep several tire sets, see which one is on the car and how many km each has done, and use **Swap tires** to switch (for example summer to winter) with the date, odometer and what it cost. Log rotation, balancing, alignment, punctures and tread depth in mm; Carlo shows wear per 1,000 km and an estimate of how far you can go before replacement. A swap counts as a rotation, so the Rotation tile stays green until it's time to swap again (winter tires mid-October to mid-April).
 - **Brakes** (its own section): log brake pad thickness in mm for the front and rear, and when new pads go on. Gauges turn green, amber and coral, with an estimate of the km left before ~3 mm.
-- **Monthly insurance:** Settings → *Monthly insurance*. Set the amount and the payment date and Carlo adds it to your expenses every month by itself, including any months that passed while the app was closed.
+- **Monthly insurance:** the *Insurance premium* card at the top of Expenses (also under Settings). Set the amount and the payment date and Carlo adds it to your expenses every month by itself, including any months that passed while the app was closed.
 - **Edit anything you logged:** expenses, car washes, tire events, brake entries and services all have an Edit button when you open their card.
 - **Reminders:** schedule a notification for any date and time, or tap *Remind me* on a maintenance card to pre-fill one. Reminders survive reboots.
+- **Dark mode:** Settings → Appearance: System, Light or Dark.
+- **Your own colours:** in the vehicle form, the last colour swatch (the rainbow one) opens a colour picker. Save a colour to "my colours" and it appears as a swatch for every vehicle. Long-press a saved colour to remove it.
 - **Settings:**
   - *App:* how close to due a service turns amber, the default reminder time, and backup/import.
   - *Vehicle:* photo, edit details, set odometer, add another vehicle, delete a vehicle.
+- **Automatic backup (survives uninstalling):** Settings → *Automatic backup*. Choose a folder (for example Documents) and Carlo saves your vehicles, history, photos and settings there after every change. After reinstalling, tap *Restore from my backup folder* on the welcome screen and pick the same folder. Carlo never overwrites a backup while the garage is empty.
 - **Backup and restore:** Settings → *Back up* opens the Android share sheet, so you can send the JSON file to Drive, Dropbox, email and so on. *Import* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Tire sets, tread and brake history and the insurance plan are included; photos aren't.
 
 ## Build it yourself
