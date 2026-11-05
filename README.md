@@ -19,13 +19,13 @@ It is a debug-signed build for personal use. It is not a Play Store release.
 Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Carlo starts empty: you add your own vehicles and details.
 
 - **Welcome screen:** shown until you add your first vehicle (or restore a backup).
-- **Garage:** switch between vehicles, tap the odometer to type in the new reading, and add a photo of your car. Tap the photo to see it full-screen.
+- **Home hub:** the first screen shows your car's photo, an attention banner ("Everything looks good" or the most urgent thing to fix, such as an overdue service, low tread or thin brake pads), and a tile for every section with a live status: Maintenance, Expenses, Tires, Brakes, Car wash and Reminders. Tiles ease in one after another and dip slightly when pressed. Tap the odometer on the home screen to type in a new reading, or use the switcher to change vehicle. The bottom bar is just Home, Reminders and Settings.
 - **Tap any card to enlarge it.** Maintenance cards open to show the interval, last and next due km, and actions (done now, remind me, edit, delete). Expense and reminder cards and the summary charts expand too.
-- **Car washes:** a Car wash card on the Garage screen shows when you last washed the car. Tap *Log wash* to add a date and price; tap the card for totals and recent washes. Washes count in your expenses.
+- **Car washes:** the Car wash section shows when you last washed the car. Tap *Log a wash* to add a date and price. Washes count in your expenses.
 - **Health at a glance:** a status pill (green / amber / coral) and a progress bar for every maintenance item.
 - **Expenses:** lifetime cost, cost per km, fuel use (L/100 km), a category donut chart and a full history.
 - **Tires:** a top-down car whose wheels are coloured by season (sun for summer, snow for winter), with the latest tread depth printed on each wheel. Keep several tire sets, see which one is on the car and how many km each has done, and use **Swap tires** to switch (for example summer to winter) with the date, odometer and what it cost. Log rotation, balancing, alignment, punctures and tread depth in mm; Carlo shows wear per 1,000 km and an estimate of how far you can go before replacement. A swap counts as a rotation, so the Rotation tile stays green until it's time to swap again (winter tires mid-October to mid-April).
-- **Brakes:** log brake pad thickness in mm for the front and rear, and when new pads go on. Gauges turn green, amber and coral, with an estimate of the km left before ~3 mm.
+- **Brakes** (its own section): log brake pad thickness in mm for the front and rear, and when new pads go on. Gauges turn green, amber and coral, with an estimate of the km left before ~3 mm.
 - **Monthly insurance:** Settings → *Monthly insurance*. Set the amount and the payment date and Carlo adds it to your expenses every month by itself, including any months that passed while the app was closed.
 - **Edit anything you logged:** expenses, car washes, tire events, brake entries and services all have an Edit button when you open their card.
 - **Reminders:** schedule a notification for any date and time, or tap *Remind me* on a maintenance card to pre-fill one. Reminders survive reboots.
@@ -50,7 +50,7 @@ The APK ends up in `app/build/outputs/apk/debug/app-debug.apk`.
 | :--- | :--- |
 | Room entities, DAOs, stats and health rules | `app/src/main/java/com/garage/tracker/data/` |
 | Backup/restore JSON, app settings | `data/Backup.kt`, `data/SettingsStore.kt` |
-| Screens and dialogs | `ui/screens/` |
+| Screens, dialogs and the home hub | `ui/screens/` (`HomeScreen.kt`, `HomeStatus.kt`) |
 | Vehicle photo and donut chart | `ui/components/` |
 | Reminder alarms and notifications | `notifications/` |
 | CI build and release | `.github/workflows/build-apk.yml` |

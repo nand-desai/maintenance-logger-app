@@ -7,11 +7,18 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -79,8 +87,8 @@ private fun GarageApp(vm: GarageViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val photoVersion by vm.photoVersion.collectAsStateWithLifecycle()
 
-    var tab by remember { mutableIntStateOf(0) }
-    var wheelsPane by rememberSaveable { mutableIntStateOf(0) } // 0 = tires, 1 = brakes
+    // home, maintenance, expenses, tires, brakes, wash, reminders, settings
+    var screen by rememberSaveable { mutableStateOf("home") }
     var dialog by remember { mutableStateOf<String?>(null) }
 
     // What the open dialog is editing (null = adding something new)
@@ -137,80 +145,106 @@ private fun GarageApp(vm: GarageViewModel) {
         }
 
         else -> {
-            val titles = listOf("My Garage", "Expenses", "Tires & brakes", "Reminders", "Settings")
+            val titles = mapOf(
+                "home" to "My Garage", "maintenance" to "Maintenance", "expenses" to "Expenses", "tires" to "Tires",
+                "brakes" to "Brakes", "wash" to "Car wash", "reminders" to "Reminders", "settings" to "Settings",
+            )
+            val isRoot = screen == "home" || screen == "reminders" || screen == "settings"
+            BackHandler(enabled = screen != "home") { screen = "home" }
+
             Scaffold(
                 containerColor = Cream,
                 snackbarHost = { SnackbarHost(snackbar) },
                 topBar = {
                     TopAppBar(
-                        title = { Text(titles[tab]) },
+                        title = { Text(titles[screen] ?: "") },
+                        navigationIcon = {
+                            if (!isRoot) IconButton(onClick = { screen = "home" }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            }
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Cream),
                     )
                 },
                 bottomBar = {
                     NavigationBar(containerColor = Color.White) {
-                        NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Default.DirectionsCar, null) }, label = { Text("Garage") })
-                        NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Default.DonutLarge, null) }, label = { Text("Expenses") })
-                        NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Default.TireRepair, null) }, label = { Text("Wheels") })
-                        NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Default.Notifications, null) }, label = { Text("Reminders") })
-                        NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
+                        NavigationBarItem(
+                            screen != "reminders" && screen != "settings", { screen = "home" },
+                            { Icon(Icons.Default.Home, null) }, label = { Text("Home") },
+                        )
+                        NavigationBarItem(screen == "reminders", { screen = "reminders" }, { Icon(Icons.Default.Notifications, null) }, label = { Text("Reminders") })
+                        NavigationBarItem(screen == "settings", { screen = "settings" }, { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
                     }
                 },
                 floatingActionButton = {
-                    when (tab) {
-                        2 -> if (wheelsPane == 0) ExtendedFloatingActionButton(
+                    when (screen) {
+                        "maintenance" -> ExtendedFloatingActionButton(
+                            onClick = { editingSchedule = null; dialog = "schedule" },
+                            icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add service") },
+                        )
+                        "expenses" -> ExtendedFloatingActionButton(
+                            onClick = { editingExpense = null; dialog = "entry" },
+                            icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add entry") },
+                        )
+                        "tires" -> ExtendedFloatingActionButton(
                             onClick = { editingEvent = null; eventPreset = null to null; dialog = "tireEvent" },
                             icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log tire event") },
-                        ) else ExtendedFloatingActionButton(
+                        )
+                        "brakes" -> ExtendedFloatingActionButton(
                             onClick = { editingBrake = null; brakePreset = null; dialog = "brake" },
                             icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log brake pads") },
                         )
-                        3 -> ExtendedFloatingActionButton(
+                        "wash" -> ExtendedFloatingActionButton(
+                            onClick = { editingWash = null; dialog = "wash" },
+                            icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log wash") },
+                        )
+                        "reminders" -> ExtendedFloatingActionButton(
                             onClick = { openReminderDialog() },
                             icon = { Icon(Icons.Default.AddAlert, null) }, text = { Text("Add reminder") },
-                        )
-                        0, 1 -> ExtendedFloatingActionButton(
-                            onClick = { editingExpense = null; dialog = "entry" },
-                            icon = { Icon(Icons.Default.Add, null) }, text = { Text("Add entry") },
                         )
                     }
                 },
             ) { pad ->
-                val m = Modifier.padding(pad)
                 val photo = vm.photoFile(active.vehicleId)
-                when (tab) {
-                    0 -> DashboardScreen(
-                        vehicle = active, vehicles = list, schedules = schedules,
-                        washes = logs.filter { it.category == Categories.CAR_WASH }.sortedByDescending { it.date },
-                        dueSoonKm = settings.dueSoonKm, photoFile = photo, photoVersion = photoVersion,
-                        onSelectVehicle = vm::select,
-                        onAddVehicle = { dialog = "addVehicle" },
-                        onEditOdometer = { dialog = "odometer" },
-                        onPickPhoto = ::pickPhoto,
-                        onAddSchedule = { editingSchedule = null; dialog = "schedule" },
-                        onEditSchedule = { editingSchedule = it; dialog = "schedule" },
-                        onMarkDone = vm::markDone,
-                        onRemind = { sch ->
-                            val left = sch.kmRemaining(active.currentOdometer)
-                            openReminderDialog(
-                                "${sch.serviceName} due",
-                                if (left < 0) "Overdue by ${"%,d".format(-left)} km"
-                                else "About ${"%,d".format(left)} km left (due at ${"%,d".format(sch.lastDoneOdometer + sch.intervalKm)} km)",
-                            )
-                        },
-                        onDeleteSchedule = vm::deleteSchedule,
-                        onLogWash = { editingWash = null; dialog = "wash" },
-                        onEditWash = { editingWash = it; dialog = "wash" },
-                        onDeleteWash = vm::deleteExpense,
-                        modifier = m,
-                    )
-                    1 -> AnalyticsScreen(active, logs, onEdit = { editingExpense = it; dialog = "entry" }, onDelete = vm::deleteExpense, modifier = m)
-                    2 -> Column(m) {
-                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            SegmentedButton(wheelsPane == 0, { wheelsPane = 0 }, SegmentedButtonDefaults.itemShape(0, 2)) { Text("Tires") }
-                            SegmentedButton(wheelsPane == 1, { wheelsPane = 1 }, SegmentedButtonDefaults.itemShape(1, 2)) { Text("Brakes") }
-                        }
-                        if (wheelsPane == 0) TiresScreen(
+                val washes = logs.filter { it.category == Categories.CAR_WASH }.sortedByDescending { it.date }
+                AnimatedContent(
+                    targetState = screen,
+                    modifier = Modifier.padding(pad),
+                    transitionSpec = {
+                        // Going back to Home slides in from the left; opening a section from the right.
+                        val dir = if (targetState == "home") -1 else 1
+                        (fadeIn(tween(240)) + slideInHorizontally(tween(260)) { dir * it / 14 }) togetherWith fadeOut(tween(140))
+                    },
+                    label = "screen",
+                ) { target ->
+                    when (target) {
+                        "home" -> HomeScreen(
+                            vehicle = active, vehicles = list, schedules = schedules, logs = logs,
+                            tireSets = tireSets, tireEvents = tireEvents, brakes = brakeEntries, reminders = reminders,
+                            dueSoonKm = settings.dueSoonKm, photoFile = photo, photoVersion = photoVersion,
+                            onSelectVehicle = vm::select,
+                            onAddVehicle = { dialog = "addVehicle" },
+                            onEditOdometer = { dialog = "odometer" },
+                            onPickPhoto = ::pickPhoto,
+                            onOpen = { screen = it },
+                        )
+                        "maintenance" -> MaintenanceScreen(
+                            vehicle = active, schedules = schedules, dueSoonKm = settings.dueSoonKm,
+                            onAddSchedule = { editingSchedule = null; dialog = "schedule" },
+                            onEditSchedule = { editingSchedule = it; dialog = "schedule" },
+                            onMarkDone = vm::markDone,
+                            onRemind = { sch ->
+                                val left = sch.kmRemaining(active.currentOdometer)
+                                openReminderDialog(
+                                    "${sch.serviceName} due",
+                                    if (left < 0) "Overdue by ${"%,d".format(-left)} km"
+                                    else "About ${"%,d".format(left)} km left (due at ${"%,d".format(sch.lastDoneOdometer + sch.intervalKm)} km)",
+                                )
+                            },
+                            onDeleteSchedule = vm::deleteSchedule,
+                        )
+                        "expenses" -> AnalyticsScreen(active, logs, onEdit = { editingExpense = it; dialog = "entry" }, onDelete = vm::deleteExpense)
+                        "tires" -> TiresScreen(
                             vehicle = active, sets = tireSets, events = tireEvents,
                             onAddSet = { editingSet = null; dialog = "tireSet" },
                             onEditSet = { editingSet = it; dialog = "tireSet" },
@@ -220,31 +254,35 @@ private fun GarageApp(vm: GarageViewModel) {
                             onLogEvent = { type, wheel -> editingEvent = null; eventPreset = type to wheel; dialog = "tireEvent" },
                             onEditEvent = { editingEvent = it; eventPreset = null to null; dialog = "tireEvent" },
                             onDeleteEvent = vm::deleteTireEvent,
-                            modifier = Modifier.weight(1f),
-                        ) else BrakesScreen(
+                        )
+                        "brakes" -> BrakesScreen(
                             vehicle = active, entries = brakeEntries,
                             onLog = { type -> editingBrake = null; brakePreset = type; dialog = "brake" },
                             onEdit = { editingBrake = it; brakePreset = null; dialog = "brake" },
                             onDelete = vm::deleteBrakeEntry,
-                            modifier = Modifier.weight(1f),
+                        )
+                        "wash" -> WashScreen(
+                            washes = washes,
+                            onLog = { editingWash = null; dialog = "wash" },
+                            onEdit = { editingWash = it; dialog = "wash" },
+                            onDelete = vm::deleteExpense,
+                        )
+                        "reminders" -> RemindersScreen(reminders, list, vm::deleteReminder)
+                        else -> SettingsScreen(
+                            vehicle = active, settings = settings, photoFile = photo, photoVersion = photoVersion,
+                            onDueSoonChange = vm::setDueSoonKm, onReminderHourChange = vm::setReminderHour,
+                            onBackup = { scope.launch { shareBackup(context, vm.createBackupFile()) } },
+                            onImport = { importPicker.launch(arrayOf("*/*")) },
+                            onAddVehicle = { dialog = "addVehicle" },
+                            onEditVehicle = { dialog = "editVehicle" },
+                            onSetOdometer = { dialog = "odometer" },
+                            onPickPhoto = ::pickPhoto,
+                            onRemovePhoto = vm::removePhoto,
+                            insurance = insurancePlan,
+                            onInsurance = { dialog = "insurance" },
+                            onDeleteVehicle = { dialog = "deleteVehicle" },
                         )
                     }
-                    3 -> RemindersScreen(reminders, list, vm::deleteReminder, m)
-                    else -> SettingsScreen(
-                        vehicle = active, settings = settings, photoFile = photo, photoVersion = photoVersion,
-                        onDueSoonChange = vm::setDueSoonKm, onReminderHourChange = vm::setReminderHour,
-                        onBackup = { scope.launch { shareBackup(context, vm.createBackupFile()) } },
-                        onImport = { importPicker.launch(arrayOf("*/*")) },
-                        onAddVehicle = { dialog = "addVehicle" },
-                        onEditVehicle = { dialog = "editVehicle" },
-                        onSetOdometer = { dialog = "odometer" },
-                        onPickPhoto = ::pickPhoto,
-                        onRemovePhoto = vm::removePhoto,
-                        insurance = insurancePlan,
-                        onInsurance = { dialog = "insurance" },
-                        onDeleteVehicle = { dialog = "deleteVehicle" },
-                        modifier = m,
-                    )
                 }
             }
         }
@@ -334,7 +372,7 @@ private fun GarageApp(vm: GarageViewModel) {
                 onDismissRequest = { dialog = null },
                 title = { Text("Delete ${v.make} ${v.model}?") },
                 text = { Text("This also deletes its services, expenses, tires, brakes, reminders and photo. It can't be undone, so make a backup first if you're unsure.") },
-                confirmButton = { TextButton({ vm.deleteVehicle(v); dialog = null; tab = 0 }) { Text("Delete") } },
+                confirmButton = { TextButton({ vm.deleteVehicle(v); dialog = null; screen = "home" }) { Text("Delete") } },
                 dismissButton = { TextButton({ dialog = null }) { Text("Cancel") } },
             )
         }
