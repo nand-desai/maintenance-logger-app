@@ -2,6 +2,8 @@
 
 export interface Vehicle { vehicleId: string; make: string; model: string; year: number; currentOdometer: number; colorHex: string }
 export interface MaintenanceSchedule { scheduleId: string; vehicleId: string; serviceName: string; intervalKm: number; lastDoneOdometer: number }
+/** One completed service: when, at what odometer, what it cost and any notes. */
+export interface MaintenanceRecord { recordId: string; scheduleId: string; vehicleId: string; serviceName: string; date: string; odometer: number; cost: number; note: string }
 export interface ExpenseLog { logId: string; vehicleId: string; date: string; odometer: number; category: string; cost: number; fuelLiters: number; note: string }
 export interface Reminder { reminderId: string; vehicleId: string | null; title: string; note: string; triggerAt: number }
 export interface TireSet { setId: string; vehicleId: string; name: string; season: string; brand: string; size: string; mounted: boolean; mountedAtOdometer: number; kmBefore: number }

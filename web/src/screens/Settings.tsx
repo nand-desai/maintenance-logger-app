@@ -37,8 +37,8 @@ export function Settings({ settings, vehicle, onToast, onEditVehicle, onOdometer
   const deleteVehicle = async () => {
     if (!confirm(`Delete ${vehicle.make} ${vehicle.model} and everything logged for it? This can't be undone.`)) return
     const id = vehicle.vehicleId
-    await db.transaction('rw', [db.vehicles, db.schedules, db.expenses, db.tireSets, db.tireEvents, db.brakeEntries, db.notes, db.recurring, db.reminders, db.photos], async () => {
-      await db.schedules.where('vehicleId').equals(id).delete(); await db.expenses.where('vehicleId').equals(id).delete()
+    await db.transaction('rw', [db.vehicles, db.schedules, db.maintenanceRecords, db.expenses, db.tireSets, db.tireEvents, db.brakeEntries, db.notes, db.recurring, db.reminders, db.photos], async () => {
+      await db.schedules.where('vehicleId').equals(id).delete(); await db.maintenanceRecords.where('vehicleId').equals(id).delete(); await db.expenses.where('vehicleId').equals(id).delete()
       await db.tireSets.where('vehicleId').equals(id).delete(); await db.tireEvents.where('vehicleId').equals(id).delete()
       await db.brakeEntries.where('vehicleId').equals(id).delete(); await db.notes.where('vehicleId').equals(id).delete()
       await db.recurring.where('vehicleId').equals(id).delete(); await db.reminders.where('vehicleId').equals(id).delete()

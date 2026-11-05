@@ -28,20 +28,21 @@ npm run build      # type-checks, then builds to web/dist
 
 ## Status
 
-**Done:** app shell and navigation, light/dark/system theme, welcome screen, **? help with install
-instructions** (iPhone Safari and Android Chrome), home hub with live status tiles and the attention banner,
-vehicle photo, add/edit/delete vehicle (with your own colours), odometer, **Maintenance**, **Expenses**
-(add/edit/delete, "Other" with a description, donut chart, monthly insurance that adds itself and catches
-up missed months), **Car wash**, **Notes** for the mechanic (shareable list), backup export/import
-compatible with Android, installable PWA with icons and offline support.
+**Everything on the home hub now works:** Maintenance (with a history of completed services: date, odometer,
+cost and notes), Expenses (with "Other", donut chart and monthly insurance that adds itself), **Tires**
+(wheel diagram with tread mm on each wheel, tire sets, seasonal swaps with a cost, punctures, rotation that
+stays green until the next swap), **Brakes** (pad thickness with the thick/thin pad visual and a wear
+estimate), Car wash, Notes, and **Reminders**. Costs entered on a service, tire or brake entry are added to
+Expenses automatically and stay in sync when you edit or delete the entry.
 
-**Next, in order:**
-1. Tires (wheel diagram, sets, swaps, tread depth, punctures)
-2. Brakes (pad thickness with the thick/thin pad visual)
-3. Reminders: iPhone Safari has no scheduled local notifications, so start with calendar (`.ics`)
-   export and in-app alerts; real push needs a small server
-4. AI cartoon-car prompt and background removal for the vehicle picture
-5. Polish and tests
+Also: the **?** install help, light/dark/system theme, your own colours, backup export/import compatible
+with Android, installable PWA with offline support.
+
+**Reminders on iPhone:** browsers can't schedule alerts while the app is closed, so each reminder has
+**Add to calendar**, which hands a `.ics` file (with an alarm) to your calendar app.
+
+**Still to do:** the AI cartoon-car prompt and background removal for the vehicle picture, an in-app
+alert for due reminders, and the Android app learning the new `maintenance_records` list.
 
 ## iPhone limits to keep in mind
 - Safari can't write to a folder you choose, so there is no silent auto-backup. Back up with

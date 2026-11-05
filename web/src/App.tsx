@@ -7,12 +7,18 @@ import { Notes } from './screens/Notes'
 import { Wash } from './screens/Wash'
 import { importBackup } from './backup'
 import { selectVehicle, useGarage, useSettings } from './store'
-import { Categories, type CarNote, type ExpenseLog, type MaintenanceSchedule, type Vehicle } from './types'
+import { Categories, type BrakeEntry, type CarNote, type ExpenseLog, type MaintenanceRecord, type MaintenanceSchedule, type Reminder, type TireEvent, type TireSet, type Vehicle } from './types'
 import { Icon } from './ui'
 import { Home } from './screens/Home'
 import { Landing } from './screens/Landing'
 import { Maintenance } from './screens/Maintenance'
-import { Placeholder } from './screens/Placeholder'
+import { BrakeDialog, ReminderDialog, ServiceDoneDialog, SwapDialog, TireEventDialog, TireSetDialog } from './dialogs2'
+import { Brakes } from './screens/Brakes'
+import { Reminders } from './screens/Reminders'
+import { Tires } from './screens/Tires'
+import { db } from './db'
+import { km } from './logic/format'
+import { kmRemaining } from './logic/health'
 import { Settings } from './screens/Settings'
 import type { SectionId } from './logic/status'
 
@@ -25,7 +31,12 @@ const TITLES: Record<Screen, string> = {
 type Dialog =
   | { kind: 'vehicle'; edit?: Vehicle } | { kind: 'odometer' } | { kind: 'schedule'; edit?: MaintenanceSchedule }
   | { kind: 'expense'; edit?: ExpenseLog } | { kind: 'insurance' } | { kind: 'wash'; edit?: ExpenseLog }
-  | { kind: 'note'; edit?: CarNote } | null
+  | { kind: 'note'; edit?: CarNote }
+  | { kind: 'done'; schedule: MaintenanceSchedule; edit?: MaintenanceRecord }
+  | { kind: 'tireSet'; edit?: TireSet } | { kind: 'swap'; target?: TireSet }
+  | { kind: 'tireEvent'; edit?: TireEvent; type?: string; wheel?: string }
+  | { kind: 'brake'; edit?: BrakeEntry; type?: string }
+  | { kind: 'reminder'; edit?: Reminder; prefill?: { title: string; note: string } } | null
 
 export default function App() {
   const garage = useGarage()
@@ -101,8 +112,13 @@ export default function App() {
             onEditOdometer={() => setDialog({ kind: 'odometer' })} onSwitch={selectVehicle} onAddVehicle={() => setDialog({ kind: 'vehicle' })} />
         )}
         {screen === 'maintenance' && (
-          <Maintenance vehicle={vehicle} schedules={data.schedules} dueSoonKm={settings.dueSoonKm}
-            onAdd={() => setDialog({ kind: 'schedule' })} onEdit={(s) => setDialog({ kind: 'schedule', edit: s })} />
+          <Maintenance vehicle={vehicle} schedules={data.schedules} records={garage.records ?? []} dueSoonKm={settings.dueSoonKm}
+            onAdd={() => setDialog({ kind: 'schedule' })} onEdit={(s) => setDialog({ kind: 'schedule', edit: s })}
+            onDone={(s) => setDialog({ kind: 'done', schedule: s })} onEditRecord={(s, r) => setDialog({ kind: 'done', schedule: s, edit: r })}
+            onRemind={(s) => {
+              const left = kmRemaining(s, vehicle.currentOdometer)
+              setDialog({ kind: 'reminder', prefill: { title: `${s.serviceName} due`, note: left < 0 ? `Overdue by ${km(-left)}` : `About ${km(left)} left (due at ${km(s.lastDoneOdometer + s.intervalKm)})` } })
+            }} />
         )}
         {screen === 'settings' && (
           <Settings settings={settings} vehicle={vehicle} onToast={say}
@@ -115,7 +131,14 @@ export default function App() {
         )}
         {screen === 'wash' && <Wash expenses={data.expenses} onLog={() => setDialog({ kind: 'wash' })} onEdit={(l) => setDialog({ kind: 'wash', edit: l })} />}
         {screen === 'notes' && <Notes vehicle={vehicle} notes={data.notes} onAdd={() => setDialog({ kind: 'note' })} onEdit={(n) => setDialog({ kind: 'note', edit: n })} onToast={say} />}
-        {!['home', 'maintenance', 'settings', 'expenses', 'wash', 'notes'].includes(screen) && <Placeholder id={screen} title={TITLES[screen]} />}
+        {screen === 'tires' && (
+          <Tires vehicle={vehicle} sets={data.tireSets} events={data.tireEvents}
+            onAddSet={() => setDialog({ kind: 'tireSet' })} onEditSet={(t) => setDialog({ kind: 'tireSet', edit: t })}
+            onDeleteSet={(t) => db.tireSets.delete(t.setId)} onSwap={(t) => setDialog({ kind: 'swap', target: t })}
+            onLog={(type, wheel) => setDialog({ kind: 'tireEvent', type, wheel })} onEditEvent={(e) => setDialog({ kind: 'tireEvent', edit: e })} />
+        )}
+        {screen === 'brakes' && <Brakes vehicle={vehicle} entries={data.brakes} onLog={(type) => setDialog({ kind: 'brake', type })} onEdit={(e) => setDialog({ kind: 'brake', edit: e })} />}
+        {screen === 'reminders' && <Reminders reminders={data.reminders} onAdd={() => setDialog({ kind: 'reminder' })} onEdit={(r) => setDialog({ kind: 'reminder', edit: r })} />}
       </main>
 
       <nav className="nav"><div className="nav-inner">
@@ -138,6 +161,20 @@ export default function App() {
       )}
       {dialog?.kind === 'wash' && <WashDialog vehicle={vehicle} initial={dialog.edit} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'note' && <NoteDialog vehicle={vehicle} initial={dialog.edit} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'done' && <ServiceDoneDialog vehicle={vehicle} schedule={dialog.schedule} initial={dialog.edit} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'tireSet' && <TireSetDialog vehicle={vehicle} initial={dialog.edit} isFirst={data.tireSets.length === 0} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'swap' && (() => {
+        const mounted = data.tireSets.find((t) => t.mounted)
+        const candidates = dialog.target ? [dialog.target] : data.tireSets.filter((t) => !t.mounted)
+        const opposite = mounted?.season === 'Summer' ? 'Winter' : mounted?.season === 'Winter' ? 'Summer' : undefined
+        return <SwapDialog vehicle={vehicle} candidates={candidates} preselected={dialog.target ?? candidates.find((c) => c.season === opposite)} onClose={() => setDialog(null)} />
+      })()}
+      {dialog?.kind === 'tireEvent' && (
+        <TireEventDialog vehicle={vehicle} initial={dialog.edit} preset={{ type: dialog.type, wheel: dialog.wheel }}
+          mountedSetId={data.tireSets.find((t) => t.mounted)?.setId ?? null} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === 'brake' && <BrakeDialog vehicle={vehicle} initial={dialog.edit} presetType={dialog.type} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'reminder' && <ReminderDialog vehicle={vehicle} initial={dialog.edit} prefill={dialog.prefill} defaultHour={settings.reminderHour} onClose={() => setDialog(null)} />}
       {help && <HelpSheet onClose={() => setHelp(false)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>

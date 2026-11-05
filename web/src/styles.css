@@ -121,3 +121,4 @@ label.f input, label.f select { padding: 12px 14px; border: 1px solid var(--outl
 
 label.f textarea { padding: 12px 14px; border: 1px solid var(--outline); border-radius: 12px; background: var(--cream); font-size: 16px; color: var(--ink); resize: vertical; font-family: inherit; }
 .help-fab { position: absolute; top: calc(env(safe-area-inset-top) + 10px); right: 12px; z-index: 6; }
+.sky { background: var(--sky-bg); color: var(--sky-fg); }

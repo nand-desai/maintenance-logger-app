@@ -74,3 +74,14 @@ export function brakeKmLeft(list: BrakeEntry[], front: boolean): number | null {
   if (km <= 0 || worn <= 0) return null
   return Math.max(0, Math.floor((brakeMm(last, front)! - BRAKE_REPLACE_MM) / (worn / km)))
 }
+
+// ---- care tiles ----
+export const CARE_KM: Record<string, number> = { Rotation: 10_000, Balancing: 20_000, Alignment: 20_000 }
+
+/** Newest rotation, counting a seasonal swap as a rotation. */
+export function lastRotation(events: TireEvent[]): TireEvent | undefined {
+  return events.filter((e) => e.type === TireEventType.ROTATION || e.type === TireEventType.SWAP).sort(byDateThenOdo).pop()
+}
+
+export const latestOfType = (events: TireEvent[], type: string): TireEvent | undefined =>
+  events.filter((e) => e.type === type).sort(byDateThenOdo).pop()

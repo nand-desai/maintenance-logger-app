@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { db } from '../db'
-import { km } from '../logic/format'
+import { deleteServiceRecord } from '../ops'
+import { km, money } from '../logic/format'
 import { health, kmRemaining, overallHealth, progress } from '../logic/health'
 import { Detail, Icon, Pill } from '../ui'
-import type { MaintenanceSchedule, Vehicle } from '../types'
+import type { MaintenanceRecord, MaintenanceSchedule, Vehicle } from '../types'
 
 const LABEL = { healthy: 'All services healthy', dueSoon: 'Service due soon', overdue: 'Service overdue' } as const
 const LEVEL = { healthy: 'good', dueSoon: 'warn', overdue: 'bad' } as const
 
-function ServiceCard({ s, vehicle, dueSoonKm, onEdit }: { s: MaintenanceSchedule; vehicle: Vehicle; dueSoonKm: number; onEdit: () => void }) {
+function ServiceCard({ s, vehicle, dueSoonKm, records, onEdit, onDone, onEditRecord, onRemind }: {
+  s: MaintenanceSchedule; vehicle: Vehicle; dueSoonKm: number; records: MaintenanceRecord[]
+  onEdit: () => void; onDone: () => void; onEditRecord: (r: MaintenanceRecord) => void; onRemind: () => void
+}) {
   const [open, setOpen] = useState(false)
   const odo = vehicle.currentOdometer
   const h = health(s, odo, dueSoonKm)
@@ -28,11 +32,26 @@ function ServiceCard({ s, vehicle, dueSoonKm, onEdit }: { s: MaintenanceSchedule
           <Detail label="Last done at" value={km(s.lastDoneOdometer)} />
           <Detail label="Next due at" value={km(s.lastDoneOdometer + s.intervalKm)} />
           <Detail label="Status" value={LABEL[h]} />
+          {records.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div className="small soft" style={{ marginBottom: 4 }}>History</div>
+              {records.map((r) => (
+                <button key={r.recordId} className="row" onClick={() => onEditRecord(r)} style={{ width: '100%', textAlign: 'left', padding: '6px 0', borderTop: '1px solid var(--outline)' }}>
+                  <span className="grow">
+                    <div className="small"><b>{r.date}</b> · {km(r.odometer)}{r.cost > 0 ? ` · ${money(r.cost)}` : ''}</div>
+                    {r.note && <div className="soft small">{r.note}</div>}
+                  </span>
+                  <span className="soft"><Icon name="edit" size={16} /></span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="actions" style={{ justifyContent: 'space-between', flexWrap: 'wrap', marginTop: 10 }}>
-            <button className="btn" onClick={() => db.schedules.update(s.scheduleId, { lastDoneOdometer: odo })}><Icon name="check" size={18} /> Done now</button>
+            <button className="btn" onClick={onDone}><Icon name="check" size={18} /> Done</button>
             <span>
+              <button className="btn text" onClick={onRemind}><Icon name="bell" size={18} /> Remind me</button>
               <button className="btn text" onClick={onEdit}><Icon name="edit" size={18} /> Edit</button>
-              <button className="btn text danger" onClick={() => db.schedules.delete(s.scheduleId)}><Icon name="trash" size={18} /> Delete</button>
+              <button className="btn text danger" onClick={async () => { if (confirm(`Delete ${s.serviceName} and its history?`)) { for (const r of records) await deleteServiceRecord(r); await db.schedules.delete(s.scheduleId) } }}><Icon name="trash" size={18} /> Delete</button>
             </span>
           </div>
         </div>
@@ -41,9 +60,10 @@ function ServiceCard({ s, vehicle, dueSoonKm, onEdit }: { s: MaintenanceSchedule
   )
 }
 
-export function Maintenance({ vehicle, schedules, dueSoonKm, onAdd, onEdit }: {
-  vehicle: Vehicle; schedules: MaintenanceSchedule[]; dueSoonKm: number
-  onAdd: () => void; onEdit: (s: MaintenanceSchedule) => void
+export function Maintenance({ vehicle, schedules, records, dueSoonKm, onAdd, onEdit, onDone, onEditRecord, onRemind }: {
+  vehicle: Vehicle; schedules: MaintenanceSchedule[]; records: MaintenanceRecord[]; dueSoonKm: number
+  onAdd: () => void; onEdit: (s: MaintenanceSchedule) => void; onDone: (s: MaintenanceSchedule) => void
+  onEditRecord: (s: MaintenanceSchedule, r: MaintenanceRecord) => void; onRemind: (s: MaintenanceSchedule) => void
 }) {
   const overall = overallHealth(schedules, vehicle.currentOdometer, dueSoonKm)
   const sorted = [...schedules].sort((a, b) => kmRemaining(a, vehicle.currentOdometer) - kmRemaining(b, vehicle.currentOdometer))
@@ -56,7 +76,11 @@ export function Maintenance({ vehicle, schedules, dueSoonKm, onAdd, onEdit }: {
           <div className="soft small">Oil change, air filter, brake fluid… Carlo will tell you when each one is due.</div>
         </button>
       )}
-      {sorted.map((s) => <ServiceCard key={s.scheduleId} s={s} vehicle={vehicle} dueSoonKm={dueSoonKm} onEdit={() => onEdit(s)} />)}
+      {sorted.map((s) => (
+        <ServiceCard key={s.scheduleId} s={s} vehicle={vehicle} dueSoonKm={dueSoonKm}
+          records={records.filter((r) => r.scheduleId === s.scheduleId).sort((a, b) => (a.date < b.date ? 1 : -1))}
+          onEdit={() => onEdit(s)} onDone={() => onDone(s)} onEditRecord={(r) => onEditRecord(s, r)} onRemind={() => onRemind(s)} />
+      ))}
       <button className="btn fab" onClick={onAdd}><Icon name="add" /> Add service</button>
     </>
   )

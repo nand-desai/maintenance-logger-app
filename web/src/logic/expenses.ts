@@ -40,4 +40,5 @@ export function summarize(logs: ExpenseLog[], currentOdometer: number): ExpenseS
 export const entryLitresPer100 = (prevOdometer: number | null, odometer: number, litres: number) =>
   prevOdometer != null && litres > 0 && odometer > prevOdometer ? (litres / (odometer - prevOdometer)) * 100 : null
 
-export const expenseTitle = (l: ExpenseLog) => (l.category === Categories.OTHER && l.note ? l.note : l.category)
+export const expenseTitle = (l: ExpenseLog) =>
+  l.category === Categories.OTHER && l.note ? l.note : l.note ? `${l.category} · ${l.note}` : l.category

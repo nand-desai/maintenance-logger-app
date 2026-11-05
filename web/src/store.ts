@@ -25,8 +25,9 @@ export function useGarage() {
     const vehicle = vehicles.find((v) => v.vehicleId === selected) ?? vehicles[0]
     if (!vehicle) return { vehicles, vehicle: undefined }
     const id = vehicle.vehicleId
-    const [schedules, expenses, reminders, tireSets, tireEvents, brakes, notes, recurring] = await Promise.all([
+    const [schedules, records, expenses, reminders, tireSets, tireEvents, brakes, notes, recurring] = await Promise.all([
       db.schedules.where('vehicleId').equals(id).toArray(),
+      db.maintenanceRecords.where('vehicleId').equals(id).toArray(),
       db.expenses.where('vehicleId').equals(id).reverse().sortBy('date'),
       db.reminders.toArray(),
       db.tireSets.where('vehicleId').equals(id).toArray(),
@@ -35,6 +36,6 @@ export function useGarage() {
       db.notes.where('vehicleId').equals(id).reverse().sortBy('date'),
       db.recurring.where('vehicleId').equals(id).toArray(),
     ])
-    return { vehicles, vehicle, schedules, expenses, reminders, tireSets, tireEvents, brakes, notes, recurring }
+    return { vehicles, vehicle, schedules, records, expenses, reminders, tireSets, tireEvents, brakes, notes, recurring }
   }, [])
 }
