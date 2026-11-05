@@ -15,7 +15,7 @@ class CarloDB extends Dexie {
   brakeEntries!: Table<BrakeEntry, string>
   notes!: Table<CarNote, string>
   recurring!: Table<RecurringExpense, string>
-  photos!: Table<{ vehicleId: string; blob: Blob }, string>
+  photos!: Table<{ vehicleId: string; blob: Blob; zoom?: number; x?: number; y?: number; fit?: boolean }, string>
   meta!: Table<{ key: string; value: unknown }, string>
 
   constructor() {

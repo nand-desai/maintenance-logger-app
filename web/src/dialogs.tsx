@@ -3,6 +3,7 @@ import { AttachmentsField, useAttachmentDraft } from './attachments'
 import { num, validMoney, validOdometer, validYear } from './numbers'
 import { db, newId, today } from './db'
 import { saveServiceRecord } from './ops'
+import { CAR_COLORS, ColorPicker } from './colors'
 import { saveSettings } from './store'
 import { Field, Sheet } from './ui'
 import { entryLitresPer100 } from './logic/expenses'
@@ -10,7 +11,7 @@ import { CATEGORY_LIST } from './logic/expenses'
 import { runRecurring } from './logic/recurring'
 import { Categories, type CarNote, type ExpenseLog, type MaintenanceSchedule, type RecurringExpense, type Settings, type Vehicle } from './types'
 
-const PRESET_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#6B7280']
+const PRESET_COLORS = CAR_COLORS
 
 /** Add a vehicle, or edit one when [initial] is given. Nothing is pre-filled for a new vehicle. */
 export function VehicleDialog({ initial, settings, onClose, onSaved }: {
@@ -20,7 +21,8 @@ export function VehicleDialog({ initial, settings, onClose, onSaved }: {
   const [model, setModel] = useState(initial?.model ?? '')
   const [year, setYear] = useState(initial?.year?.toString() ?? '')
   const [odo, setOdo] = useState(initial?.currentOdometer?.toString() ?? '')
-  const [color, setColor] = useState(initial?.colorHex ?? PRESET_COLORS[0])
+  const [color, setColor] = useState(initial?.colorHex ?? '#3B82F6')
+  const [picking, setPicking] = useState(false)
   const palette = [...PRESET_COLORS, ...settings.savedColors.filter((c) => !PRESET_COLORS.includes(c))]
   const valid = make.trim() && model.trim() && validYear(year) && validOdometer(odo)
 
@@ -45,12 +47,10 @@ export function VehicleDialog({ initial, settings, onClose, onSaved }: {
           <button key={c} aria-label={`Colour ${c}`} className={`swatch ${c.toLowerCase() === color.toLowerCase() ? 'on' : ''}`}
             style={{ background: c }} onClick={() => setColor(c)} />
         ))}
-        {/* pick your own, then optionally keep it in "my colours" */}
-        <label className="swatch" style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)', position: 'relative', overflow: 'hidden' }}>
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value.toUpperCase())}
-            style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="Pick your own colour" />
-        </label>
+        <button className={`swatch ${picking ? 'on' : ''}`} aria-label="Pick your own colour" aria-expanded={picking}
+          style={{ background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' }} onClick={() => setPicking(!picking)} />
       </div>
+      {picking && <ColorPicker value={color.toUpperCase()} onChange={(c) => setColor(c)} />}
       {!palette.some((c) => c.toLowerCase() === color.toLowerCase()) && (
         <button className="btn text" onClick={() => saveSettings({ savedColors: [...settings.savedColors, color.toUpperCase()] })}>
           Save {color.toUpperCase()} to my colours

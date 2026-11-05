@@ -53,3 +53,5 @@ alert for due reminders.
   **Share → Save to Files** (iCloud Drive) and import with the file picker.
 - Data survives as long as the home-screen app is installed. Deleting it or clearing Safari data
   deletes it. The app asks the browser to protect its storage.
+
+- **Colours and pictures:** the vehicle colour has 26 car colours plus a built-in picker (drag the shade square and hue strip, or type a hex code). Tap your car's picture to drag it into place, zoom, centre it, or show the whole picture. The position is remembered on this device (it isn't part of backups yet).
