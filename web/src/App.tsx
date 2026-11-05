@@ -97,6 +97,20 @@ export default function App() {
     tireEvents: garage.tireEvents ?? [], brakes: garage.brakes ?? [], reminders: garage.reminders ?? [],
     notes: garage.notes ?? [], dueSoonKm: settings.dueSoonKm,
   }
+  // A cost copied from a service, tire or brake record is edited on that record, so the two never disagree.
+  const editExpense = (l: ExpenseLog) => {
+    if (l.logId.startsWith('EXP_')) {
+      const src = l.logId.slice(4)
+      const rec = (garage.records ?? []).find((r) => r.recordId === src)
+      const sch = rec && data.schedules.find((s) => s.scheduleId === rec.scheduleId)
+      if (rec && sch) return setDialog({ kind: 'done', schedule: sch, edit: rec })
+      const ev = data.tireEvents.find((e) => e.eventId === src)
+      if (ev) return setDialog({ kind: 'tireEvent', edit: ev })
+      const br = data.brakes.find((b) => b.entryId === src)
+      if (br) return setDialog({ kind: 'brake', edit: br })
+    }
+    setDialog({ kind: 'expense', edit: l })
+  }
   const isRoot = screen === 'home' || screen === 'settings' || screen === 'reminders'
 
   return (
@@ -112,7 +126,7 @@ export default function App() {
             onEditOdometer={() => setDialog({ kind: 'odometer' })} onSwitch={selectVehicle} onAddVehicle={() => setDialog({ kind: 'vehicle' })} />
         )}
         {screen === 'maintenance' && (
-          <Maintenance vehicle={vehicle} schedules={data.schedules} records={garage.records ?? []} dueSoonKm={settings.dueSoonKm}
+          <Maintenance vehicle={vehicle} schedules={data.schedules} records={garage.records ?? []} expenses={data.expenses} onEditExpense={editExpense} dueSoonKm={settings.dueSoonKm}
             onAdd={() => setDialog({ kind: 'schedule' })} onEdit={(s) => setDialog({ kind: 'schedule', edit: s })}
             onDone={(s) => setDialog({ kind: 'done', schedule: s })} onEditRecord={(s, r) => setDialog({ kind: 'done', schedule: s, edit: r })}
             onRemind={(s) => {
@@ -126,8 +140,8 @@ export default function App() {
             onAddVehicle={() => setDialog({ kind: 'vehicle' })} onDeleted={() => { setScreen('home') }} />
         )}
         {screen === 'expenses' && (
-          <Expenses vehicle={vehicle} expenses={data.expenses} insurance={garage.recurring?.find((r) => r.category === Categories.INSURANCE)}
-            onAdd={() => setDialog({ kind: 'expense' })} onEdit={(l) => setDialog({ kind: 'expense', edit: l })} onInsurance={() => setDialog({ kind: 'insurance' })} />
+          <Expenses vehicle={vehicle} expenses={data.expenses} schedules={data.schedules} insurance={garage.recurring?.find((r) => r.category === Categories.INSURANCE)}
+            onAdd={() => setDialog({ kind: 'expense' })} onEdit={editExpense} onInsurance={() => setDialog({ kind: 'insurance' })} />
         )}
         {screen === 'wash' && <Wash expenses={data.expenses} onLog={() => setDialog({ kind: 'wash' })} onEdit={(l) => setDialog({ kind: 'wash', edit: l })} />}
         {screen === 'notes' && <Notes vehicle={vehicle} notes={data.notes} onAdd={() => setDialog({ kind: 'note' })} onEdit={(n) => setDialog({ kind: 'note', edit: n })} onToast={say} />}
@@ -153,7 +167,7 @@ export default function App() {
       {dialog?.kind === 'odometer' && <OdometerDialog vehicle={vehicle} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'schedule' && <ScheduleDialog vehicle={vehicle} initial={dialog.edit} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'expense' && (
-        <ExpenseDialog vehicle={vehicle} initial={dialog.edit} onClose={() => setDialog(null)}
+        <ExpenseDialog vehicle={vehicle} initial={dialog.edit} schedules={data.schedules} onClose={() => setDialog(null)}
           previousFuelOdometer={data.expenses.filter((e) => e.category === Categories.FUEL && e.logId !== dialog.edit?.logId).reduce<number | null>((m, e) => (m == null || e.odometer > m ? e.odometer : m), null)} />
       )}
       {dialog?.kind === 'insurance' && (

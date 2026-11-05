@@ -33,7 +33,9 @@ Dates are ISO `YYYY-MM-DD`. Missing optional fields are treated as `null` / empt
   ],
   "maintenance_schedules": [
     { "schedule_id": "SCH_...", "vehicle_id": "CAR_...", "service_name": "Engine oil & filter",
-      "interval_km": 10000, "last_done_odometer": 88000 }
+      "interval_km": 10000, "last_done_odometer": 88000,
+      "parts": "Mobil 1 5W-30, 5.4 L · filter WIX 57060",   // optional: what you usually use
+      "notes": "Dealer does the first two free" }          // optional
   ],
   "maintenance_records": [      // optional; written and read by both apps
     { "record_id": "MNT_...", "schedule_id": "SCH_...", "vehicle_id": "CAR_...", "service_name": "Brake fluid",
@@ -42,7 +44,8 @@ Dates are ISO `YYYY-MM-DD`. Missing optional fields are treated as `null` / empt
   "expense_logs": [
     { "log_id": "LOG_...", "vehicle_id": "CAR_...", "date": "2026-11-01", "odometer": 94000,
       "category": "Fuel",       // Fuel | Service | Insurance | Upgrades | Car wash | Other
-      "cost": 62.4, "fuel_liters": 41.2, "note": "" }   // note = what an "Other" expense was for
+      "cost": 62.4, "fuel_liters": 41.2, "note": "",     // note = what an "Other" expense was for
+      "schedule_id": null }                              // optional: the maintenance item this cost belongs to
   ],
   "reminders": [
     { "reminder_id": "REM_...", "vehicle_id": "CAR_..." /* or null */, "title": "Oil change",
@@ -100,3 +103,4 @@ Android automatic-backup folder. An `attachments` row whose file is missing is s
 - A **cost** entered on a completed service, tire entry or brake entry is mirrored as a *Service* expense with id `EXP_<record_id, event_id or entry_id>`. Its `note` says what it was for (for example `Brake fluid · Dealer flush`, `Tire swap · Winter set`, `Tires · Puncture`, `Brakes · new pads`), and the Expenses list shows it as `Service · <note>`. Editing the entry updates that expense; deleting the entry deletes it.
 - Marking a service **done** adds a `maintenance_records` entry and moves the service's `last_done_odometer` to the newest record's odometer. Deleting a service deletes its records and their mirrored expenses.
 - **Attachments** are receipts and similar: photos are shrunk to at most 1600 px (JPEG); PDFs and other files are kept as they are, up to 25 MB each. Deleting a record, entry or expense deletes its attachments.
+- An expense can be **linked to a maintenance item** (`schedule_id`). Costs copied from a service record are linked automatically; you can also link a *Service* expense yourself. A copied cost (`EXP_…`) is edited by opening its source record, so the two never disagree.

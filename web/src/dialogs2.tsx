@@ -31,6 +31,7 @@ export function ServiceDoneDialog({ vehicle, schedule, initial, onClose }: {
       <label className="f">Notes (optional)
         <textarea rows={3} value={note} placeholder="e.g. synthetic 5W-30, garage name, what the mechanic said" onChange={(e) => setNote(e.target.value)} />
       </label>
+      {schedule.parts && <div className="small" style={{ background: 'var(--neutral)', borderRadius: 12, padding: '8px 12px' }}><b>Usual parts:</b> {schedule.parts}</div>}
       <AttachmentsField draft={draft} />
       <div className="small soft">A cost is added to your Expenses automatically.</div>
       <div className="actions">

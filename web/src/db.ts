@@ -37,6 +37,8 @@ class CarloDB extends Dexie {
     this.version(2).stores({ maintenanceRecords: 'recordId, vehicleId, scheduleId' })
     // v3: receipts and other files attached to records
     this.version(3).stores({ attachments: 'attachmentId, vehicleId, ownerId' })
+    // v4: expenses can be linked to a maintenance item
+    this.version(4).stores({ expenses: 'logId, vehicleId, date, scheduleId' })
   }
 }
 

@@ -3,9 +3,9 @@ import { db, newId, today } from './db'
 import { TireEventType, type BrakeEntry, type MaintenanceRecord, type MaintenanceSchedule, type TireEvent, type TireSet, type Vehicle } from './types'
 
 /** Keeps a "Service" expense in step with a cost entered on a service, tire or brake record. */
-export async function mirrorCost(sourceId: string, vehicleId: string, date: string, odometer: number, cost: number, what: string) {
+export async function mirrorCost(sourceId: string, vehicleId: string, date: string, odometer: number, cost: number, what: string, scheduleId: string | null = null) {
   const id = `EXP_${sourceId}`
-  if (cost > 0) await db.expenses.put({ logId: id, vehicleId, date, odometer, category: 'Service', cost, fuelLiters: 0, note: what })
+  if (cost > 0) await db.expenses.put({ logId: id, vehicleId, date, odometer, category: 'Service', cost, fuelLiters: 0, note: what, scheduleId })
   else await db.expenses.delete(id)
 }
 
@@ -29,7 +29,7 @@ export async function saveServiceRecord(v: Vehicle, s: MaintenanceSchedule, f: {
     await db.maintenanceRecords.put(rec)
     await db.schedules.update(s.scheduleId, { lastDoneOdometer: f.recordId ? (await db.schedules.get(s.scheduleId))!.lastDoneOdometer : f.odometer })
     await refreshLastDone(s.scheduleId)
-    await mirrorCost(rec.recordId, v.vehicleId, f.date, f.odometer, f.cost, s.serviceName + (f.note ? ` · ${f.note}` : ''))
+    await mirrorCost(rec.recordId, v.vehicleId, f.date, f.odometer, f.cost, s.serviceName + (f.note ? ` · ${f.note}` : ''), s.scheduleId)
     await bumpOdometer(v, f.odometer)
   })
 }

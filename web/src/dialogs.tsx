@@ -83,6 +83,8 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
   const [name, setName] = useState(initial?.serviceName ?? '')
   const [interval, setInterval] = useState(initial?.intervalKm?.toString() ?? '')
   const [last, setLast] = useState((initial?.lastDoneOdometer ?? vehicle.currentOdometer).toString())
+  const [parts, setParts] = useState(initial?.parts ?? '')
+  const [notes, setNotes] = useState(initial?.notes ?? '')
   const valid = name.trim() && num(interval) > 0 && validOdometer(last)
   return (
     <Sheet title={initial ? 'Edit maintenance item' : 'Add maintenance item'} onClose={onClose}>
@@ -97,12 +99,19 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
       <Field label="Service (e.g. Engine oil & filter)" value={name} onChange={setName} />
       <Field label="Repeat every (km)" value={interval} onChange={setInterval} inputMode="numeric" />
       <Field label="Last done at (km)" value={last} onChange={setLast} inputMode="numeric" />
+      <label className="f">Your parts and specs (optional)
+        <textarea rows={2} value={parts} placeholder="e.g. Mobil 1 5W-30, 5.4 L · filter WIX 57060" onChange={(e) => setParts(e.target.value)} />
+      </label>
+      <label className="f">Notes (optional)
+        <textarea rows={2} value={notes} placeholder="e.g. dealer does it free in the first 2 years" onChange={(e) => setNotes(e.target.value)} />
+      </label>
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
         <button className="btn" disabled={!valid} onClick={async () => {
           await db.schedules.put({
             scheduleId: initial?.scheduleId ?? newId('SCH'), vehicleId: vehicle.vehicleId,
             serviceName: name.trim(), intervalKm: num(interval), lastDoneOdometer: num(last),
+            parts: parts.trim(), notes: notes.trim(),
           })
           onClose()
         }}>Save</button>
@@ -112,8 +121,8 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
 }
 
 /** Add an expense, or edit one when [initial] is given. */
-export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose }: {
-  vehicle: Vehicle; initial?: ExpenseLog; previousFuelOdometer: number | null; onClose: () => void
+export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, schedules, onClose }: {
+  vehicle: Vehicle; initial?: ExpenseLog; previousFuelOdometer: number | null; schedules: MaintenanceSchedule[]; onClose: () => void
 }) {
   const [date, setDate] = useState(initial?.date ?? today())
   const [odo, setOdo] = useState((initial?.odometer ?? vehicle.currentOdometer).toString())
@@ -122,6 +131,7 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
   const [litres, setLitres] = useState(initial?.fuelLiters ? initial.fuelLiters.toString() : '')
   const [note, setNote] = useState(initial?.note ?? '')
   const [logId] = useState(initial?.logId ?? newId('LOG'))
+  const [scheduleId, setScheduleId] = useState<string | null>(initial?.scheduleId ?? null)
   const draft = useAttachmentDraft(logId)
   const isFuel = category === Categories.FUEL
   const isOther = category === Categories.OTHER
@@ -132,6 +142,7 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
     await db.expenses.put({
       logId, vehicleId: vehicle.vehicleId, date, odometer: num(odo), category,
       cost: num(cost), fuelLiters: isFuel ? num(litres) || 0 : 0,
+      scheduleId: category === Categories.SERVICE ? scheduleId : null,
       // keep the description of a service/tire/brake expense; "Other" uses what was typed
       note: isOther ? note.trim() : initial && initial.category !== Categories.OTHER ? initial.note : '',
     })
@@ -148,6 +159,15 @@ export function ExpenseDialog({ vehicle, initial, previousFuelOdometer, onClose 
         {CATEGORY_LIST.map((c) => <button key={c} className={`chip ${c === category ? 'on' : ''}`} onClick={() => setCategory(c)}>{c}</button>)}
       </div>
       {isOther && <Field label="What was it for? (e.g. remote starter)" value={note} onChange={setNote} />}
+      {category === Categories.SERVICE && schedules.length > 0 && (
+        <>
+          <div className="small soft">Link to a service (optional): it then shows on that service</div>
+          <div className="chips">
+            <button className={`chip ${scheduleId == null ? 'on' : ''}`} onClick={() => setScheduleId(null)}>None</button>
+            {schedules.map((s) => <button key={s.scheduleId} className={`chip ${scheduleId === s.scheduleId ? 'on' : ''}`} onClick={() => setScheduleId(s.scheduleId)}>{s.serviceName}</button>)}
+          </div>
+        </>
+      )}
       <Field label="Cost (CAD)" value={cost} onChange={setCost} inputMode="decimal" />
       {isFuel && <Field label="Fuel (litres)" value={litres} onChange={setLitres} inputMode="decimal" />}
       {rate != null && <div className="small soft">≈ {rate.toFixed(1)} L/100 km since the last fill-up</div>}

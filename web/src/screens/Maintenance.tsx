@@ -5,13 +5,13 @@ import { deleteServiceRecord } from '../ops'
 import { km, money } from '../logic/format'
 import { health, kmRemaining, overallHealth, progress } from '../logic/health'
 import { Detail, Icon, Pill } from '../ui'
-import type { MaintenanceRecord, MaintenanceSchedule, Vehicle } from '../types'
+import type { ExpenseLog, MaintenanceRecord, MaintenanceSchedule, Vehicle } from '../types'
 
 const LABEL = { healthy: 'All services healthy', dueSoon: 'Service due soon', overdue: 'Service overdue' } as const
 const LEVEL = { healthy: 'good', dueSoon: 'warn', overdue: 'bad' } as const
 
-function ServiceCard({ s, vehicle, dueSoonKm, records, onEdit, onDone, onEditRecord, onRemind }: {
-  s: MaintenanceSchedule; vehicle: Vehicle; dueSoonKm: number; records: MaintenanceRecord[]
+function ServiceCard({ s, vehicle, dueSoonKm, records, linked, onEditExpense, onEdit, onDone, onEditRecord, onRemind }: {
+  s: MaintenanceSchedule; vehicle: Vehicle; dueSoonKm: number; records: MaintenanceRecord[]; linked: ExpenseLog[]; onEditExpense: (e: ExpenseLog) => void
   onEdit: () => void; onDone: () => void; onEditRecord: (r: MaintenanceRecord) => void; onRemind: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -33,6 +33,19 @@ function ServiceCard({ s, vehicle, dueSoonKm, records, onEdit, onDone, onEditRec
           <Detail label="Last done at" value={km(s.lastDoneOdometer)} />
           <Detail label="Next due at" value={km(s.lastDoneOdometer + s.intervalKm)} />
           <Detail label="Status" value={LABEL[h]} />
+          {s.parts && <div style={{ marginTop: 6 }}><div className="small soft">Your parts and specs</div><div className="small" style={{ whiteSpace: 'pre-wrap' }}>{s.parts}</div></div>}
+          {s.notes && <div style={{ marginTop: 6 }}><div className="small soft">Notes</div><div className="small" style={{ whiteSpace: 'pre-wrap' }}>{s.notes}</div></div>}
+          {linked.length > 0 && <Detail label="Total spent on this service" value={money(linked.reduce((t, e) => t + e.cost, 0))} />}
+          {linked.filter((e) => !e.logId.startsWith('EXP_')).length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <div className="small soft">Linked expenses</div>
+              {linked.filter((e) => !e.logId.startsWith('EXP_')).map((e) => (
+                <button key={e.logId} className="row small" style={{ width: '100%', textAlign: 'left', padding: '4px 0' }} onClick={() => onEditExpense(e)}>
+                  <span className="grow"><b>{e.date}</b> · {money(e.cost)}{e.note ? ` · ${e.note}` : ''}</span><span className="soft"><Icon name="edit" size={14} /></span>
+                </button>
+              ))}
+            </div>
+          )}
           {records.length > 0 && (
             <div style={{ marginTop: 10 }}>
               <div className="small soft" style={{ marginBottom: 4 }}>History</div>
@@ -64,8 +77,8 @@ function ServiceCard({ s, vehicle, dueSoonKm, records, onEdit, onDone, onEditRec
   )
 }
 
-export function Maintenance({ vehicle, schedules, records, dueSoonKm, onAdd, onEdit, onDone, onEditRecord, onRemind }: {
-  vehicle: Vehicle; schedules: MaintenanceSchedule[]; records: MaintenanceRecord[]; dueSoonKm: number
+export function Maintenance({ vehicle, schedules, records, expenses, dueSoonKm, onAdd, onEdit, onDone, onEditRecord, onRemind, onEditExpense }: {
+  vehicle: Vehicle; schedules: MaintenanceSchedule[]; records: MaintenanceRecord[]; expenses: ExpenseLog[]; dueSoonKm: number; onEditExpense: (e: ExpenseLog) => void
   onAdd: () => void; onEdit: (s: MaintenanceSchedule) => void; onDone: (s: MaintenanceSchedule) => void
   onEditRecord: (s: MaintenanceSchedule, r: MaintenanceRecord) => void; onRemind: (s: MaintenanceSchedule) => void
 }) {
@@ -83,6 +96,7 @@ export function Maintenance({ vehicle, schedules, records, dueSoonKm, onAdd, onE
       {sorted.map((s) => (
         <ServiceCard key={s.scheduleId} s={s} vehicle={vehicle} dueSoonKm={dueSoonKm}
           records={records.filter((r) => r.scheduleId === s.scheduleId).sort((a, b) => (a.date < b.date ? 1 : -1))}
+          linked={expenses.filter((e) => e.scheduleId === s.scheduleId)} onEditExpense={onEditExpense}
           onEdit={() => onEdit(s)} onDone={() => onDone(s)} onEditRecord={(r) => onEditRecord(s, r)} onRemind={() => onRemind(s)} />
       ))}
       <button className="btn fab" onClick={onAdd}><Icon name="add" /> Add service</button>

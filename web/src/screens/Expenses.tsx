@@ -5,7 +5,7 @@ import { deleteExpense } from '../ops'
 import { CATEGORY_LIST, CHART_COLORS, expenseTitle, summarize } from '../logic/expenses'
 import { km, money } from '../logic/format'
 import { Detail, Icon } from '../ui'
-import type { ExpenseLog, RecurringExpense, Vehicle } from '../types'
+import type { ExpenseLog, MaintenanceSchedule, RecurringExpense, Vehicle } from '../types'
 
 /** Donut chart drawn with SVG circles (circumference normalised to 100). */
 function Donut({ values, size }: { values: number[]; size: number }) {
@@ -27,7 +27,7 @@ function Donut({ values, size }: { values: number[]; size: number }) {
   )
 }
 
-function ExpenseCard({ l, onEdit }: { l: ExpenseLog; onEdit: () => void }) {
+function ExpenseCard({ l, linkedTo, onEdit }: { l: ExpenseLog; linkedTo?: string; onEdit: () => void }) {
   const [open, setOpen] = useState(false)
   // a cost mirrored from a service/tire/brake record shows that record's receipts
   const owner = l.logId.startsWith('EXP_') ? l.logId.slice(4) : l.logId
@@ -44,6 +44,8 @@ function ExpenseCard({ l, onEdit }: { l: ExpenseLog; onEdit: () => void }) {
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10 }}>
           {l.category === 'Other' && <Detail label="Category" value="Other" />}
           {l.note && l.category !== 'Other' && <Detail label="Note" value={l.note} />}
+          {linkedTo && <Detail label="Linked to service" value={linkedTo} />}
+          {l.logId.startsWith('EXP_') && <div className="soft small">This cost comes from a record, so Edit opens that record.</div>}
           <Detail label="Odometer" value={km(l.odometer)} />
           {l.fuelLiters > 0 && <Detail label="Fuel" value={`${l.fuelLiters.toFixed(1)} L`} />}
           {l.fuelLiters > 0 && l.cost > 0 && <Detail label="Price per litre" value={money(l.cost / l.fuelLiters, 3)} />}
@@ -58,8 +60,8 @@ function ExpenseCard({ l, onEdit }: { l: ExpenseLog; onEdit: () => void }) {
   )
 }
 
-export function Expenses({ vehicle, expenses, insurance, onAdd, onEdit, onInsurance }: {
-  vehicle: Vehicle; expenses: ExpenseLog[]; insurance?: RecurringExpense
+export function Expenses({ vehicle, expenses, schedules, insurance, onAdd, onEdit, onInsurance }: {
+  vehicle: Vehicle; expenses: ExpenseLog[]; schedules: MaintenanceSchedule[]; insurance?: RecurringExpense
   onAdd: () => void; onEdit: (l: ExpenseLog) => void; onInsurance: () => void
 }) {
   const [totalOpen, setTotalOpen] = useState(false)
@@ -130,7 +132,7 @@ export function Expenses({ vehicle, expenses, insurance, onAdd, onEdit, onInsura
         const list = filter ? expenses.filter((e) => e.category === filter) : expenses
         return (
           <>
-            {list.slice(0, shown).map((l) => <ExpenseCard key={l.logId} l={l} onEdit={() => onEdit(l)} />)}
+            {list.slice(0, shown).map((l) => <ExpenseCard key={l.logId} l={l} linkedTo={schedules.find((s) => s.scheduleId === l.scheduleId)?.serviceName} onEdit={() => onEdit(l)} />)}
             {list.length > shown && <button className="btn outline block" onClick={() => setShown(shown + 50)}>Show 50 more ({list.length - shown} left)</button>}
           </>
         )
