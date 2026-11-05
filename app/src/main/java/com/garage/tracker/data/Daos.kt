@@ -66,6 +66,12 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders")
     suspend fun getAll(): List<Reminder>
 
+    @Query("SELECT * FROM reminders WHERE vehicleId = :vehicleId")
+    suspend fun getForVehicle(vehicleId: String): List<Reminder>
+
+    @Query("DELETE FROM reminders WHERE vehicleId = :vehicleId")
+    suspend fun deleteForVehicle(vehicleId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(reminder: Reminder)
 

@@ -2,7 +2,7 @@
 
 A friendly Android app for keeping track of your cars: service schedules, expenses and reminders, all in one tidy place. Carlo works fully offline. Your data lives on your phone, and you can back it up to Google Drive (or anywhere else) whenever you like.
 
-Built with Kotlin, Jetpack Compose (Material 3), Room and SceneView (Google Filament).
+Built with Kotlin, Jetpack Compose (Material 3) and Room.
 
 ## Download
 
@@ -16,56 +16,18 @@ It is a debug-signed build for personal use. It is not a Play Store release.
 
 ## Features
 
-Everything is metric (km, litres, L/100 km) and money is in Canadian dollars.
+Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Carlo starts empty: you add your own vehicles and details.
 
-
-- **Garage:** switch between vehicles, bump the odometer with `+100 km`, and see an interactive 3D model of your car (load your own `.glb` from your phone).
-- **Health at a glance:** a status pill (green / amber / coral) and a progress card for every maintenance item.
+- **Welcome screen:** shown until you add your first vehicle (or restore a backup).
+- **Garage:** switch between vehicles, tap the odometer to type in the new reading, and add a photo of your car. Tap the photo to see it full-screen.
+- **Tap any card to enlarge it.** Maintenance cards open to show the interval, last and next due km, and actions (done now, remind me, edit, delete). Expense and reminder cards and the summary charts expand too.
+- **Health at a glance:** a status pill (green / amber / coral) and a progress bar for every maintenance item.
 - **Expenses:** lifetime cost, cost per km, fuel use (L/100 km), a category donut chart and a full history.
-- **Reminders:** schedule a notification for any date and time, or tap the bell on a maintenance card to pre-fill one. Reminders survive reboots.
-- **Backup and restore:** menu → *Back up (share JSON)* opens the Android share sheet, so you can send the file to Drive, Dropbox, email and so on. *Import backup* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept.
-
-## Add a 3D model of your car
-
-Carlo shows a `.glb` model on the dashboard, and each vehicle can have its own.
-
-1. Download a `.glb` file for your vehicle to your phone (see the prompt below).
-2. In Carlo, tap **Add a 3D model** on the dashboard, or open the ⋮ menu → **Set 3D model (.glb)**, and pick the file.
-3. Drag to rotate and pinch to zoom. To go back to the placeholder, use ⋮ → **Remove 3D model**.
-
-The model is copied into the app's private storage (50 MB limit), so you can delete the download afterwards. Models are not part of the JSON backup, so keep the `.glb` file if you move to a new phone.
-
-Good models are under about 15 MB, show a single car, and are licensed so you can use them (CC0 or CC-BY). Credit the author if the license asks for it.
-
-### Prompt: ask an LLM to find a model for your car
-
-Copy this into an LLM that can browse the web. Fill in your car at the top.
-
-```text
-I'm building an Android app that shows a 3D model of my car, and I need a .glb file for it.
-
-My vehicle: <year> <make> <model> <trim, e.g. 2016 Volkswagen Golf TSI>
-
-Please search for a 3D model that I can legally download and use in a personal app. Look at Sketchfab, Poly Pizza, Free3D, CGTrader (free section), TurboSquid (free section), Kenney, and the GitHub/Khronos glTF sample models, and anywhere else that fits.
-
-Requirements:
-- Format: .glb (binary glTF). If only .gltf, .fbx, .obj or .blend is offered, tell me and give me the conversion steps.
-- Closest match to my exact car and generation. If there is no exact match, give the closest alternative and say how it differs.
-- License must allow personal use: CC0 or CC-BY preferred. Tell me exactly what attribution I need to give.
-- File size under 15 MB if possible, and low to medium polygon count (under about 300k triangles) so it runs smoothly on a phone.
-- Reasonably clean model: single car, no big scene or background, wheels attached.
-
-For each of your top 3 to 5 candidates, give me:
-1. Name and a direct link to the page
-2. Author and the license (with a link to the license text)
-3. Whether it downloads as .glb, plus file size and triangle count if shown
-4. How well it matches my car, in one sentence
-5. Any catch (needs a free account, paid, wrong generation, very high poly)
-
-Then tell me which one you recommend and the exact steps to download it. Only give links you actually found. If you can't verify something, say so instead of guessing.
-```
-
-If the best model you find is in another format, a free tool like [Blender](https://www.blender.org/) (File → Export → glTF 2.0, choose *glTF Binary (.glb)*) will convert it. For heavy files, the [gltf.report](https://gltf.report/) optimizer can shrink them.
+- **Reminders:** schedule a notification for any date and time, or tap *Remind me* on a maintenance card to pre-fill one. Reminders survive reboots.
+- **Settings:**
+  - *App:* how close to due a service turns amber, the default reminder time, and backup/import.
+  - *Vehicle:* photo, edit details, set odometer, add another vehicle, delete a vehicle.
+- **Backup and restore:** Settings → *Back up* opens the Android share sheet, so you can send the JSON file to Drive, Dropbox, email and so on. *Import* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Photos aren't included in the backup.
 
 ## Build it yourself
 
@@ -82,9 +44,9 @@ The APK ends up in `app/build/outputs/apk/debug/app-debug.apk`.
 | Area | Where |
 | :--- | :--- |
 | Room entities, DAOs, stats and health rules | `app/src/main/java/com/garage/tracker/data/` |
-| Backup/restore JSON | `data/Backup.kt` |
+| Backup/restore JSON, app settings | `data/Backup.kt`, `data/SettingsStore.kt` |
 | Screens and dialogs | `ui/screens/` |
-| 3D viewport and donut chart | `ui/components/` |
+| Vehicle photo and donut chart | `ui/components/` |
 | Reminder alarms and notifications | `notifications/` |
 | CI build and release | `.github/workflows/build-apk.yml` |
 

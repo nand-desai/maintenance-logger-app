@@ -9,11 +9,11 @@ const val DUE_SOON_KM = 1500
 fun MaintenanceSchedule.kmRemaining(currentOdometer: Int): Int =
     lastDoneOdometer + intervalKm - currentOdometer
 
-fun MaintenanceSchedule.health(currentOdometer: Int): Health {
+fun MaintenanceSchedule.health(currentOdometer: Int, dueSoonKm: Int = DUE_SOON_KM): Health {
     val left = kmRemaining(currentOdometer)
     return when {
         left < 0 -> Health.Overdue
-        left <= DUE_SOON_KM -> Health.DueSoon
+        left <= dueSoonKm -> Health.DueSoon
         else -> Health.Healthy
     }
 }
@@ -23,9 +23,9 @@ fun MaintenanceSchedule.progress(currentOdometer: Int): Float =
     if (intervalKm <= 0) 1f
     else ((currentOdometer - lastDoneOdometer).toFloat() / intervalKm).coerceIn(0f, 1f)
 
-fun overallHealth(schedules: List<MaintenanceSchedule>, odometer: Int): Health = when {
-    schedules.any { it.health(odometer) == Health.Overdue } -> Health.Overdue
-    schedules.any { it.health(odometer) == Health.DueSoon } -> Health.DueSoon
+fun overallHealth(schedules: List<MaintenanceSchedule>, odometer: Int, dueSoonKm: Int = DUE_SOON_KM): Health = when {
+    schedules.any { it.health(odometer, dueSoonKm) == Health.Overdue } -> Health.Overdue
+    schedules.any { it.health(odometer, dueSoonKm) == Health.DueSoon } -> Health.DueSoon
     else -> Health.Healthy
 }
 

@@ -7,6 +7,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import com.garage.tracker.data.MaintenanceSchedule
+import com.garage.tracker.data.Vehicle
 import com.garage.tracker.data.Categories
 import com.garage.tracker.data.entryLitresPer100Km
 import android.text.format.DateFormat
@@ -72,29 +81,41 @@ fun AddEntryDialog(
     )
 }
 
+private val vehicleColors = listOf("#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#6B7280")
+
+/** Add a vehicle, or edit one when [initial] is given. Nothing is pre-filled for a new vehicle. */
 @Composable
-fun AddVehicleDialog(onDismiss: () -> Unit, onSave: (String, String, Int, Int, String) -> Unit) {
-    var make by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }
-    var year by remember { mutableStateOf(LocalDate.now().year.toString()) }
-    var odo by remember { mutableStateOf("0") }
-    var color by remember { mutableStateOf("#3B82F6") }
+fun VehicleDialog(initial: Vehicle?, onDismiss: () -> Unit, onSave: (make: String, model: String, year: Int, odometer: Int, color: String) -> Unit) {
+    var make by remember { mutableStateOf(initial?.make ?: "") }
+    var model by remember { mutableStateOf(initial?.model ?: "") }
+    var year by remember { mutableStateOf(initial?.year?.toString() ?: "") }
+    var odo by remember { mutableStateOf(initial?.currentOdometer?.toString() ?: "") }
+    var color by remember { mutableStateOf(initial?.colorHex ?: vehicleColors.first()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add vehicle") },
+        title = { Text(if (initial == null) "Add vehicle" else "Edit vehicle") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Field(make, { make = it }, "Make")
-                Field(model, { model = it }, "Model / trim")
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Field(make, { make = it }, "Make (e.g. Toyota)")
+                Field(model, { model = it }, "Model / trim (e.g. Corolla SE)")
                 Field(year, { year = it }, "Year", num)
                 Field(odo, { odo = it }, "Current odometer (km)", num)
-                Field(color, { color = it }, "Colour (hex)")
+                Text("Colour tag", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    vehicleColors.forEach { hex ->
+                        Box(
+                            Modifier.size(34.dp).clip(CircleShape).background(parseColor(hex))
+                                .border(if (hex == color) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                .clickable { color = hex },
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 enabled = make.isNotBlank() && model.isNotBlank() && year.toIntOrNull() != null && odo.toIntOrNull() != null,
-                onClick = { onSave(make.trim(), model.trim(), year.toInt(), odo.toInt(), color.trim()); onDismiss() },
+                onClick = { onSave(make.trim(), model.trim(), year.toInt(), odo.toInt(), color); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
@@ -102,17 +123,46 @@ fun AddVehicleDialog(onDismiss: () -> Unit, onSave: (String, String, Int, Int, S
 }
 
 @Composable
-fun AddScheduleDialog(currentOdometer: Int, onDismiss: () -> Unit, onSave: (String, Int, Int) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var interval by remember { mutableStateOf("10000") }
-    var last by remember { mutableStateOf(currentOdometer.toString()) }
+fun SetOdometerDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+    var value by remember { mutableStateOf(current.toString()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add maintenance item") },
+        title = { Text("Update odometer") },
+        text = { Field(value, { value = it }, "Odometer (km)", num) },
+        confirmButton = {
+            TextButton(enabled = value.toIntOrNull() != null, onClick = { onSave(value.toInt()); onDismiss() }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel") } },
+    )
+}
+
+private val serviceSuggestions = listOf(
+    "Engine oil & filter" to 10000, "Tire rotation" to 10000, "Brake fluid" to 40000,
+    "Air filter" to 30000, "Coolant" to 60000, "Brake pads" to 50000,
+)
+
+/** Add a maintenance item, or edit one when [initial] is given. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismiss: () -> Unit, onSave: (String, Int, Int) -> Unit) {
+    var name by remember { mutableStateOf(initial?.serviceName ?: "") }
+    var interval by remember { mutableStateOf(initial?.intervalKm?.toString() ?: "") }
+    var last by remember { mutableStateOf((initial?.lastDoneOdometer ?: currentOdometer).toString()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "Add maintenance item" else "Edit maintenance item") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Field(name, { name = it }, "Service (e.g. Engine Oil & Filter)")
-                Field(interval, { interval = it }, "Interval (km)", num)
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (initial == null) {
+                    Text("Quick pick", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        serviceSuggestions.forEach { (n, km) ->
+                            SuggestionChip(onClick = { name = n; interval = km.toString() }, label = { Text(n) })
+                        }
+                    }
+                }
+                Field(name, { name = it }, "Service (e.g. Engine oil & filter)")
+                Field(interval, { interval = it }, "Repeat every (km)", num)
                 Field(last, { last = it }, "Last done at (km)", num)
             }
         },
@@ -128,12 +178,12 @@ fun AddScheduleDialog(currentOdometer: Int, onDismiss: () -> Unit, onSave: (Stri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddReminderDialog(initialTitle: String = "", initialNote: String = "", onDismiss: () -> Unit, onSave: (title: String, note: String, triggerAt: Long) -> Unit) {
+fun AddReminderDialog(defaultHour: Int, initialTitle: String = "", initialNote: String = "", onDismiss: () -> Unit, onSave: (title: String, note: String, triggerAt: Long) -> Unit) {
     val context = LocalContext.current
     var title by remember { mutableStateOf(initialTitle) }
     var note by remember { mutableStateOf(initialNote) }
     var date by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
-    var time by remember { mutableStateOf(LocalTime.of(9, 0)) }
+    var time by remember { mutableStateOf(LocalTime.of(defaultHour, 0)) }
     var pickDate by remember { mutableStateOf(false) }
     var pickTime by remember { mutableStateOf(false) }
 

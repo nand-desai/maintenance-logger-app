@@ -1,33 +1,43 @@
 package com.garage.tracker
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.net.Uri
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.garage.tracker.data.*
 import com.garage.tracker.notifications.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.time.LocalDate
-import android.net.Uri
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.time.LocalDate
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GarageViewModel(app: Application) : AndroidViewModel(app) {
     private val db = GarageDatabase.get(app)
     private val scheduler = ReminderScheduler(app)
+    private val settingsStore = SettingsStore(app)
+
+    val settings: StateFlow<AppSettings> = settingsStore.state
 
     private val selectedId = MutableStateFlow<String?>(null)
 
-    val vehicles: StateFlow<List<Vehicle>> =
-        db.vehicleDao().observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /** null until the first database read, so the UI doesn't flash the welcome screen. */
+    val vehicles: StateFlow<List<Vehicle>?> =
+        db.vehicleDao().observeAll().map<List<Vehicle>, List<Vehicle>?> { it }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val activeVehicle: StateFlow<Vehicle?> =
-        combine(vehicles, selectedId) { list, id -> list.firstOrNull { it.vehicleId == id } ?: list.firstOrNull() }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        combine(vehicles, selectedId) { list, id ->
+            list?.let { l -> l.firstOrNull { it.vehicleId == id } ?: l.firstOrNull() }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val schedules: StateFlow<List<MaintenanceSchedule>> = activeVehicle
         .flatMapLatest { v -> v?.let { db.scheduleDao().observeFor(it.vehicleId) } ?: flowOf(emptyList()) }
@@ -44,11 +54,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
-    init {
-        viewModelScope.launch {
-            if (db.vehicleDao().count() == 0) seedSample()
-        }
-    }
+    fun say(msg: String) { _message.value = msg }
+    fun clearMessage() { _message.value = null }
+
+    // ---- Vehicles ------------------------------------------------------------------------------
 
     fun select(id: String) { selectedId.value = id }
 
@@ -59,13 +68,22 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
             selectedId.value = v.vehicleId
         }
 
-    fun bumpOdometer(delta: Int) = viewModelScope.launch {
-        activeVehicle.value?.let { db.vehicleDao().setOdometer(it.vehicleId, it.currentOdometer + delta) }
+    fun updateVehicle(v: Vehicle) = viewModelScope.launch { db.vehicleDao().upsert(v) }
+
+    fun deleteVehicle(v: Vehicle) = viewModelScope.launch {
+        db.reminderDao().getForVehicle(v.vehicleId).forEach { scheduler.cancel(it) }
+        db.reminderDao().deleteForVehicle(v.vehicleId)
+        withContext(Dispatchers.IO) { photoFile(v.vehicleId).delete() }
+        db.vehicleDao().delete(v) // schedules and expenses go with it (cascade)
+        selectedId.value = null
+        _photoVersion.value++
     }
 
     fun setOdometer(value: Int) = viewModelScope.launch {
         activeVehicle.value?.let { db.vehicleDao().setOdometer(it.vehicleId, value) }
     }
+
+    // ---- Maintenance ---------------------------------------------------------------------------
 
     fun addSchedule(name: String, interval: Int, lastDone: Int) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
@@ -80,6 +98,8 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
     fun updateSchedule(s: MaintenanceSchedule) = viewModelScope.launch { db.scheduleDao().upsert(s) }
     fun deleteSchedule(s: MaintenanceSchedule) = viewModelScope.launch { db.scheduleDao().delete(s) }
 
+    // ---- Expenses ------------------------------------------------------------------------------
+
     fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double) =
         viewModelScope.launch {
             val v = activeVehicle.value ?: return@launch
@@ -88,6 +108,8 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     fun deleteExpense(log: ExpenseLog) = viewModelScope.launch { db.expenseDao().delete(log) }
+
+    // ---- Reminders -----------------------------------------------------------------------------
 
     fun addReminder(title: String, note: String, triggerAt: Long) = viewModelScope.launch {
         val r = Reminder(newId("REM"), activeVehicle.value?.vehicleId, title, note, triggerAt)
@@ -99,6 +121,8 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         scheduler.cancel(r)
         db.reminderDao().delete(r)
     }
+
+    // ---- Backup --------------------------------------------------------------------------------
 
     /** Writes the backup JSON to the cache dir and returns the file, ready to be shared. */
     suspend fun createBackupFile(): File = withContext(Dispatchers.IO) {
@@ -118,69 +142,74 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         }.getOrElse { "Import failed: ${it.message ?: "unreadable file"}" }
     }
 
-    // ---- Per-vehicle 3D model (.glb), stored privately in the app ---------------------------------
+    // ---- Vehicle photos ------------------------------------------------------------------------
 
-    private val _modelVersion = MutableStateFlow(0)
-    val modelVersion: StateFlow<Int> = _modelVersion
+    private val _photoVersion = MutableStateFlow(0)
+    val photoVersion: StateFlow<Int> = _photoVersion
 
-    private fun modelsDir() = File(getApplication<Application>().filesDir, "models")
-    fun modelFile(vehicleId: String) = File(modelsDir(), "$vehicleId.glb")
+    fun photoFile(vehicleId: String) =
+        File(File(getApplication<Application>().filesDir, "photos"), "$vehicleId.img")
 
-    fun importModel(uri: Uri) = viewModelScope.launch {
+    /** Copies any picture into private storage, fixing its rotation and capping it at ~2000 px. */
+    fun importPhoto(uri: Uri) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
         _message.value = runCatching {
             withContext(Dispatchers.IO) {
-                val dir = modelsDir().apply { mkdirs() }
-                val tmp = File(dir, "${v.vehicleId}.tmp")
-                try {
-                    getApplication<Application>().contentResolver.openInputStream(uri)!!.buffered().use { input ->
-                        val head = ByteArray(4)
-                        require(input.read(head) == 4 && String(head, Charsets.ISO_8859_1) == "glTF") {
-                            "that isn't a .glb file"
-                        }
-                        tmp.outputStream().use { out ->
-                            out.write(head)
-                            val buf = ByteArray(64 * 1024)
-                            var total = 4L
-                            while (true) {
-                                val n = input.read(buf)
-                                if (n < 0) break
-                                total += n
-                                require(total <= MAX_MODEL_BYTES) { "the file is over 50 MB" }
-                                out.write(buf, 0, n)
-                            }
+                val resolver = getApplication<Application>().contentResolver
+
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                resolver.openInputStream(uri)!!.use { BitmapFactory.decodeStream(it, null, bounds) }
+                require(bounds.outWidth > 0 && bounds.outHeight > 0) { "that isn't an image" }
+                var sample = 1
+                while (bounds.outWidth / sample > 2000 || bounds.outHeight / sample > 2000) sample *= 2
+
+                var bitmap = resolver.openInputStream(uri)!!.use {
+                    BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+                } ?: error("couldn't read the image")
+
+                val degrees = runCatching {
+                    resolver.openInputStream(uri)!!.use {
+                        when (ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                            else -> 0f
                         }
                     }
-                    val target = modelFile(v.vehicleId)
+                }.getOrDefault(0f)
+                if (degrees != 0f) {
+                    bitmap = Bitmap.createBitmap(
+                        bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(degrees) }, true,
+                    )
+                }
+
+                val target = photoFile(v.vehicleId).also { it.parentFile?.mkdirs() }
+                val tmp = File(target.parentFile, "${v.vehicleId}.tmp")
+                try {
+                    tmp.outputStream().use {
+                        bitmap.compress(if (bitmap.hasAlpha()) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, 90, it)
+                    }
                     target.delete()
-                    check(tmp.renameTo(target)) { "couldn't save the file" }
+                    check(tmp.renameTo(target)) { "couldn't save the photo" }
                 } finally {
                     tmp.delete()
                 }
             }
-            _modelVersion.value++
-            "3D model updated"
-        }.getOrElse { "Couldn't use that file: ${it.message}" }
+            _photoVersion.value++
+            "Photo updated"
+        }.getOrElse { "Couldn't use that picture: ${it.message}" }
     }
 
-    fun removeModel() = viewModelScope.launch {
+    fun removePhoto() = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
-        withContext(Dispatchers.IO) { modelFile(v.vehicleId).delete() }
-        _modelVersion.value++
+        withContext(Dispatchers.IO) { photoFile(v.vehicleId).delete() }
+        _photoVersion.value++
     }
 
-    fun say(msg: String) { _message.value = msg }
-    fun clearMessage() { _message.value = null }
+    // ---- Settings ------------------------------------------------------------------------------
 
-    private suspend fun seedSample() {
-        val v = Vehicle("CAR_001", "Volkswagen", "Golf TSI", 2016, 94000, "#3B82F6")
-        db.vehicleDao().upsert(v)
-        db.scheduleDao().upsert(MaintenanceSchedule("SCH_001", v.vehicleId, "Engine Oil & Filter (5W-40)", 10000, 88000))
-        db.scheduleDao().upsert(MaintenanceSchedule("SCH_002", v.vehicleId, "Tire Rotation", 10000, 85000))
-        db.scheduleDao().upsert(MaintenanceSchedule("SCH_003", v.vehicleId, "Brake Fluid", 40000, 60000))
-    }
-
-    private companion object { const val MAX_MODEL_BYTES = 50L * 1024 * 1024 }
+    fun setDueSoonKm(km: Int) = settingsStore.setDueSoonKm(km)
+    fun setReminderHour(hour: Int) = settingsStore.setReminderHour(hour)
 
     private fun newId(prefix: String) = "${prefix}_${UUID.randomUUID().toString().take(8)}"
 }

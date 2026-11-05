@@ -28,8 +28,6 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
-    // .glb models must not be compressed so Filament can memory-map them
-    androidResources { noCompress += listOf("glb", "gltf") }
 }
 
 dependencies {
@@ -44,7 +42,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    implementation("io.github.sceneview:sceneview:2.2.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

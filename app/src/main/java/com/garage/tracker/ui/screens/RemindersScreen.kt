@@ -8,6 +8,11 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -42,15 +47,16 @@ fun RemindersScreen(
         return
     }
     val (upcoming, past) = reminders.partition { it.triggerAt > now }
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(upcoming + past, key = { it.reminderId }) { r ->
             val isPast = r.triggerAt <= now
             val car = vehicles.firstOrNull { it.vehicleId == r.vehicleId }?.let { "${it.make} ${it.model} · " }.orEmpty()
-            SoftCard {
+            var open by rememberSaveable(r.reminderId) { mutableStateOf(false) }
+            SoftCard(onClick = { open = !open }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(r.title, fontWeight = FontWeight.SemiBold, color = if (isPast) InkSoft else Ink)
-                        if (r.note.isNotBlank()) Text(r.note, color = InkSoft, style = MaterialTheme.typography.bodyMedium)
+                        if (r.note.isNotBlank()) Text(r.note, color = InkSoft, style = MaterialTheme.typography.bodyMedium, maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
                         Spacer(Modifier.height(6.dp))
                         Pill(
                             car + Instant.ofEpochMilli(r.triggerAt).atZone(ZoneId.systemDefault()).format(fmt),

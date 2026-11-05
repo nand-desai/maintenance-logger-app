@@ -1,5 +1,6 @@
 package com.garage.tracker.ui.screens
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,14 +13,24 @@ import androidx.compose.ui.unit.dp
 import com.garage.tracker.data.Health
 import com.garage.tracker.ui.theme.*
 
+/** White rounded card. Pass [onClick] to make it tappable; its content animates when it grows. */
 @Composable
-fun SoftCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) { Column(Modifier.padding(16.dp), content = content) }
+fun SoftCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(20.dp)
+    val colors = CardDefaults.cardColors(containerColor = Surface)
+    val elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    val inner: @Composable ColumnScope.() -> Unit = {
+        Column(Modifier.padding(16.dp).animateContentSize(), content = content)
+    }
+    if (onClick == null) {
+        Card(modifier.fillMaxWidth(), shape = shape, colors = colors, elevation = elevation, content = inner)
+    } else {
+        Card(onClick, modifier.fillMaxWidth(), shape = shape, colors = colors, elevation = elevation, content = inner)
+    }
 }
 
 data class HealthStyle(val label: String, val bg: Color, val fg: Color)
@@ -34,6 +45,15 @@ fun Health.style() = when (this) {
 fun Pill(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier) {
     Box(modifier.background(bg, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp)) {
         Text(text, color = fg, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** "Label ........ value" line used in expanded cards. */
+@Composable
+fun DetailRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = InkSoft, style = MaterialTheme.typography.bodyMedium)
+        Text(value, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
