@@ -54,13 +54,14 @@ fun AddEntryDialog(
     defaultOdometer: Int,
     previousFuelOdometer: Int?,
     onDismiss: () -> Unit,
-    onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double) -> Unit,
+    onSave: (date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String) -> Unit,
 ) {
     var date by remember { mutableStateOf(parseDate(initial?.date)) }
     var odo by remember { mutableStateOf((initial?.odometer ?: defaultOdometer).toString()) }
     var category by remember { mutableStateOf(initial?.category ?: Categories.FUEL) }
     var cost by remember { mutableStateOf(initial?.cost?.toString() ?: "") }
     var litres by remember { mutableStateOf(initial?.fuelLiters?.takeIf { it > 0 }?.toString() ?: "") }
+    var note by remember { mutableStateOf(initial?.note ?: "") }
 
     val odoV = odo.toIntOrNull()
     val costV = cost.toNumber()
@@ -81,6 +82,7 @@ fun AddEntryDialog(
                         Categories.all.forEach { c -> DropdownMenuItem(text = { Text(c) }, onClick = { category = c; menu = false }) }
                     }
                 }
+                if (category == Categories.OTHER) Field(note, { note = it }, "What was it for? (e.g. remote starter)")
                 Field(cost, { cost = it }, "Cost (CAD)", dec)
                 if (category == Categories.FUEL) {
                     Field(litres, { litres = it }, "Fuel (litres)", dec)
@@ -90,8 +92,11 @@ fun AddEntryDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = odoV != null && costV != null,
-                onClick = { onSave(date.toString(), odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0); onDismiss() },
+                enabled = odoV != null && costV != null && (category != Categories.OTHER || note.isNotBlank()),
+                onClick = {
+                    onSave(date.toString(), odoV!!, category, costV!!, if (category == Categories.FUEL) fuel else 0.0, if (category == Categories.OTHER) note.trim() else "")
+                    onDismiss()
+                },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

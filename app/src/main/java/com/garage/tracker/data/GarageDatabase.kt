@@ -12,7 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Vehicle::class, MaintenanceSchedule::class, ExpenseLog::class, Reminder::class,
         TireSet::class, TireEvent::class, BrakeEntry::class, RecurringExpense::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class GarageDatabase : RoomDatabase() {
@@ -30,7 +30,7 @@ abstract class GarageDatabase : RoomDatabase() {
         fun get(context: Context): GarageDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext, GarageDatabase::class.java, "garage.db",
-            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4).fallbackToDestructiveMigration().build().also { instance = it }
+            ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).fallbackToDestructiveMigration().build().also { instance = it }
         }
     }
 }
@@ -78,5 +78,12 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
                 "FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`vehicleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_recurring_expenses_vehicleId` ON `recurring_expenses` (`vehicleId`)")
+    }
+}
+
+/** Lets an "Other" expense say what it was for. */
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `expense_logs` ADD COLUMN `note` TEXT NOT NULL DEFAULT ''")
     }
 }

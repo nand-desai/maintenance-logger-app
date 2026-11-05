@@ -42,6 +42,8 @@ data class ExpenseLog(
     val category: String,
     val cost: Double,
     val fuelLiters: Double = 0.0,
+    /** What an "Other" expense was for, e.g. "Remote starter". */
+    @ColumnInfo(defaultValue = "''") val note: String = "",
 )
 
 @Entity(tableName = "reminders")
@@ -143,5 +145,6 @@ object Categories {
     const val INSURANCE = "Insurance"
     const val UPGRADES = "Upgrades"
     const val CAR_WASH = "Car wash"
-    val all = listOf(FUEL, SERVICE, INSURANCE, UPGRADES, CAR_WASH)
+    const val OTHER = "Other"
+    val all = listOf(FUEL, SERVICE, INSURANCE, UPGRADES, CAR_WASH, OTHER)
 }

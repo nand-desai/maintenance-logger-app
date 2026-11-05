@@ -63,7 +63,7 @@ val NeutralBg: Color @Composable @ReadOnlyComposable get() = LocalAppColors.curr
 val SkyBg: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.skyBg
 val SkyFg: Color @Composable @ReadOnlyComposable get() = LocalAppColors.current.skyFg
 
-val ChartColors = listOf(Color(0xFF7C9CFF), Color(0xFFFFB38A), Color(0xFF8FD6B3), Color(0xFFC9A8F5), Color(0xFFF5A3C7))
+val ChartColors = listOf(Color(0xFF7C9CFF), Color(0xFFFFB38A), Color(0xFF8FD6B3), Color(0xFFC9A8F5), Color(0xFFF5A3C7), Color(0xFF9FB8C9))
 
 /** The brand blue, for places that aren't composable. */
 val BrandBlue = Color(0xFF5B7CFA)

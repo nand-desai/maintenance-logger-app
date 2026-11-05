@@ -331,9 +331,9 @@ private fun GarageApp(vm: GarageViewModel) {
                 defaultOdometer = v.currentOdometer,
                 previousFuelOdometer = logs.filter { it.category == Categories.FUEL && it.logId != editing?.logId }.maxOfOrNull { it.odometer },
                 onDismiss = { dialog = null },
-            ) { date, odo, category, cost, litres ->
-                if (editing != null) vm.updateExpense(editing.copy(date = date, odometer = odo, category = category, cost = cost, fuelLiters = litres))
-                else vm.addExpense(date, odo, category, cost, litres)
+            ) { date, odo, category, cost, litres, note ->
+                if (editing != null) vm.updateExpense(editing.copy(date = date, odometer = odo, category = category, cost = cost, fuelLiters = litres, note = note))
+                else vm.addExpense(date, odo, category, cost, litres, note)
             }
         }
         "wash" -> {

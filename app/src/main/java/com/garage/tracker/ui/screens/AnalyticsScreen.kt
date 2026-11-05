@@ -130,13 +130,15 @@ private fun ExpenseCard(l: ExpenseLog, onEdit: (ExpenseLog) -> Unit, onDelete: (
     SoftCard(onClick = { open = !open }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("${l.category} · ${money(l.cost)}", fontWeight = FontWeight.SemiBold, style = if (open) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge)
+                Text((if (l.category == Categories.OTHER && l.note.isNotBlank()) l.note else l.category) + " · ${money(l.cost)}", fontWeight = FontWeight.SemiBold, style = if (open) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge)
                 Text(l.date, color = InkSoft, style = MaterialTheme.typography.bodySmall)
             }
             Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = InkSoft)
         }
         if (open) {
             Spacer(Modifier.height(12.dp))
+            if (l.category == Categories.OTHER) DetailRow("Category", "Other")
+            if (l.note.isNotBlank()) DetailRow("What for", l.note)
             DetailRow("Odometer", "${"%,d".format(l.odometer)} km")
             if (l.fuelLiters > 0) {
                 DetailRow("Fuel", "%.1f L".format(l.fuelLiters))

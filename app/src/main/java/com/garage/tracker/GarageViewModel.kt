@@ -123,10 +123,10 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Expenses ------------------------------------------------------------------------------
 
-    fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double) =
+    fun addExpense(date: String, odometer: Int, category: String, cost: Double, litres: Double, note: String = "") =
         viewModelScope.launch {
             val v = activeVehicle.value ?: return@launch
-            db.expenseDao().upsert(ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, litres))
+            db.expenseDao().upsert(ExpenseLog(newId("LOG"), v.vehicleId, date, odometer, category, cost, litres, note))
             if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
         }
 
