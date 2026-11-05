@@ -23,11 +23,12 @@ Everything is metric (km, litres, L/100 km) and money is in Canadian dollars. Ca
 - **Tap any card to enlarge it.** Maintenance cards open to show the interval, last and next due km, and actions (done now, remind me, edit, delete). Expense and reminder cards and the summary charts expand too.
 - **Health at a glance:** a status pill (green / amber / coral) and a progress bar for every maintenance item.
 - **Expenses:** lifetime cost, cost per km, fuel use (L/100 km), a category donut chart and a full history.
+- **Tires:** a top-down car whose wheels are coloured by season (sun for summer, snow for winter). Keep several tire sets, see which one is on the car and how many km each has done, and swap them in a tap. Log rotation, balancing, alignment and punctures. Tap a wheel to see its punctures. Care tiles show how long ago each service was done.
 - **Reminders:** schedule a notification for any date and time, or tap *Remind me* on a maintenance card to pre-fill one. Reminders survive reboots.
 - **Settings:**
   - *App:* how close to due a service turns amber, the default reminder time, and backup/import.
   - *Vehicle:* photo, edit details, set odometer, add another vehicle, delete a vehicle.
-- **Backup and restore:** Settings → *Back up* opens the Android share sheet, so you can send the JSON file to Drive, Dropbox, email and so on. *Import* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Photos aren't included in the backup.
+- **Backup and restore:** Settings → *Back up* opens the Android share sheet, so you can send the JSON file to Drive, Dropbox, email and so on. *Import* loads one back in. Importing merges: rows with the same ID are overwritten and everything else is kept. Tire sets and history are included; photos aren't.
 
 ## Build it yourself
 

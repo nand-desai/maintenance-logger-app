@@ -78,3 +78,34 @@ interface ReminderDao {
     @Delete
     suspend fun delete(reminder: Reminder)
 }
+
+@Dao
+interface TireDao {
+    @Query("SELECT * FROM tire_sets WHERE vehicleId = :vehicleId ORDER BY name")
+    fun observeSets(vehicleId: String): Flow<List<TireSet>>
+
+    @Query("SELECT * FROM tire_events WHERE vehicleId = :vehicleId ORDER BY date DESC, odometer DESC")
+    fun observeEvents(vehicleId: String): Flow<List<TireEvent>>
+
+    @Query("SELECT * FROM tire_sets")
+    suspend fun allSets(): List<TireSet>
+
+    @Query("SELECT * FROM tire_events")
+    suspend fun allEvents(): List<TireEvent>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertSet(set: TireSet)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertEvent(event: TireEvent)
+
+    @Delete
+    suspend fun deleteSet(set: TireSet)
+
+    @Delete
+    suspend fun deleteEvent(event: TireEvent)
+
+    /** Takes whatever is on the car off, banking the km it just drove. */
+    @Query("UPDATE tire_sets SET mounted = 0, kmBefore = kmBefore + MAX(0, :odometer - mountedAtOdometer) WHERE vehicleId = :vehicleId AND mounted = 1")
+    suspend fun unmountAll(vehicleId: String, odometer: Int)
+}

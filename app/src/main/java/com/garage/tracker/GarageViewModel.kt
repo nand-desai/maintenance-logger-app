@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.garage.tracker.data.*
 import com.garage.tracker.notifications.ReminderScheduler
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,14 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     val logs: StateFlow<List<ExpenseLog>> = activeVehicle
         .flatMapLatest { v -> v?.let { db.expenseDao().observeFor(it.vehicleId) } ?: flowOf(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val tireSets: StateFlow<List<TireSet>> = activeVehicle
+        .flatMapLatest { v -> v?.let { db.tireDao().observeSets(it.vehicleId) } ?: flowOf(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val tireEvents: StateFlow<List<TireEvent>> = activeVehicle
+        .flatMapLatest { v -> v?.let { db.tireDao().observeEvents(it.vehicleId) } ?: flowOf(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val reminders: StateFlow<List<Reminder>> =
@@ -108,6 +117,46 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     fun deleteExpense(log: ExpenseLog) = viewModelScope.launch { db.expenseDao().delete(log) }
+
+    // ---- Tires ---------------------------------------------------------------------------------
+
+    fun addTireSet(name: String, season: String, brand: String, size: String, kmBefore: Int, mountNow: Boolean) =
+        viewModelScope.launch {
+            val v = activeVehicle.value ?: return@launch
+            val set = TireSet(newId("SET"), v.vehicleId, name, season, brand, size, false, 0, kmBefore)
+            db.tireDao().upsertSet(set)
+            if (mountNow) mountInternal(v, set, v.currentOdometer)
+        }
+
+    fun updateTireSet(set: TireSet) = viewModelScope.launch { db.tireDao().upsertSet(set) }
+
+    fun deleteTireSet(set: TireSet) = viewModelScope.launch { db.tireDao().deleteSet(set) }
+
+    /** Puts [set] on the car at [odometer]; whatever was on before is taken off and its km banked. */
+    fun mountTireSet(set: TireSet, odometer: Int) = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        mountInternal(v, set, odometer)
+    }
+
+    private suspend fun mountInternal(v: Vehicle, set: TireSet, odometer: Int) {
+        db.withTransaction {
+            db.tireDao().unmountAll(v.vehicleId, odometer)
+            db.tireDao().upsertSet(set.copy(mounted = true, mountedAtOdometer = odometer))
+            db.tireDao().upsertEvent(
+                TireEvent(newId("TIR"), v.vehicleId, set.setId, TireEventType.SWAP, LocalDate.now().toString(), odometer, null, "Mounted ${set.name}"),
+            )
+            if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+        }
+    }
+
+    fun addTireEvent(type: String, date: String, odometer: Int, wheel: String?, note: String) = viewModelScope.launch {
+        val v = activeVehicle.value ?: return@launch
+        val onCar = tireSets.value.firstOrNull { it.mounted }?.setId
+        db.tireDao().upsertEvent(TireEvent(newId("TIR"), v.vehicleId, onCar, type, date, odometer, wheel, note))
+        if (odometer > v.currentOdometer) db.vehicleDao().setOdometer(v.vehicleId, odometer)
+    }
+
+    fun deleteTireEvent(e: TireEvent) = viewModelScope.launch { db.tireDao().deleteEvent(e) }
 
     // ---- Reminders -----------------------------------------------------------------------------
 

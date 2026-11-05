@@ -11,9 +11,13 @@ object Backup {
     private val ACCEPTED = setOf(APP, "wheelhouse", "pitstop")
     private const val FORMAT_VERSION = 2 // 2 = metric (km, litres)
 
-    data class Counts(val vehicles: Int, val schedules: Int, val expenses: Int, val reminders: Int) {
+    data class Counts(
+        val vehicles: Int, val schedules: Int, val expenses: Int, val reminders: Int,
+        val tireSets: Int = 0, val tireEvents: Int = 0,
+    ) {
         override fun toString() =
-            "$vehicles vehicles, $schedules services, $expenses expenses, $reminders reminders"
+            "$vehicles vehicles, $schedules services, $expenses expenses, $reminders reminders, " +
+                "$tireSets tire sets, $tireEvents tire events"
     }
 
     suspend fun toJson(db: GarageDatabase): String {
@@ -38,6 +42,16 @@ object Backup {
         root.put("reminders", JSONArray(db.reminderDao().getAll().map {
             JSONObject().put("reminder_id", it.reminderId).put("vehicle_id", it.vehicleId ?: JSONObject.NULL)
                 .put("title", it.title).put("note", it.note).put("trigger_at", it.triggerAt)
+        }))
+        root.put("tire_sets", JSONArray(db.tireDao().allSets().map {
+            JSONObject().put("set_id", it.setId).put("vehicle_id", it.vehicleId).put("name", it.name)
+                .put("season", it.season).put("brand", it.brand).put("size", it.size).put("mounted", it.mounted)
+                .put("mounted_at_odometer", it.mountedAtOdometer).put("km_before", it.kmBefore)
+        }))
+        root.put("tire_events", JSONArray(db.tireDao().allEvents().map {
+            JSONObject().put("event_id", it.eventId).put("vehicle_id", it.vehicleId)
+                .put("set_id", it.setId ?: JSONObject.NULL).put("type", it.type).put("date", it.date)
+                .put("odometer", it.odometer).put("wheel", it.wheel ?: JSONObject.NULL).put("note", it.note)
         }))
         return root.toString(2)
     }
@@ -67,13 +81,25 @@ object Backup {
             Reminder(it.getString("reminder_id"), if (it.isNull("vehicle_id")) null else it.getString("vehicle_id"),
                 it.getString("title"), it.optString("note", ""), it.getLong("trigger_at"))
         }
+        val tireSets = root.optJSONArray("tire_sets").objects().map {
+            TireSet(it.getString("set_id"), it.getString("vehicle_id"), it.getString("name"), it.getString("season"),
+                it.optString("brand", ""), it.optString("size", ""), it.optBoolean("mounted", false),
+                it.optInt("mounted_at_odometer", 0), it.optInt("km_before", 0))
+        }
+        val tireEvents = root.optJSONArray("tire_events").objects().map {
+            TireEvent(it.getString("event_id"), it.getString("vehicle_id"),
+                if (it.isNull("set_id")) null else it.getString("set_id"), it.getString("type"), it.getString("date"),
+                it.getInt("odometer"), if (it.isNull("wheel")) null else it.getString("wheel"), it.optString("note", ""))
+        }
         db.withTransaction {
             vehicles.forEach { db.vehicleDao().upsert(it) }
             schedules.forEach { db.scheduleDao().upsert(it) }
             expenses.forEach { db.expenseDao().upsert(it) }
             reminders.forEach { db.reminderDao().upsert(it) }
+            tireSets.forEach { db.tireDao().upsertSet(it) }
+            tireEvents.forEach { db.tireDao().upsertEvent(it) }
         }
-        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size)
+        return Counts(vehicles.size, schedules.size, expenses.size, reminders.size, tireSets.size, tireEvents.size)
     }
 
     private fun JSONArray?.objects(): List<JSONObject> =

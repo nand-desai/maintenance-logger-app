@@ -28,6 +28,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.garage.tracker.data.Categories
 import com.garage.tracker.data.MaintenanceSchedule
+import com.garage.tracker.data.TireSet
 import com.garage.tracker.data.kmRemaining
 import com.garage.tracker.notifications.ReminderScheduler
 import com.garage.tracker.ui.screens.*
@@ -67,6 +68,8 @@ private fun GarageApp(vm: GarageViewModel) {
     val schedules by vm.schedules.collectAsStateWithLifecycle()
     val logs by vm.logs.collectAsStateWithLifecycle()
     val reminders by vm.reminders.collectAsStateWithLifecycle()
+    val tireSets by vm.tireSets.collectAsStateWithLifecycle()
+    val tireEvents by vm.tireEvents.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val photoVersion by vm.photoVersion.collectAsStateWithLifecycle()
@@ -74,6 +77,9 @@ private fun GarageApp(vm: GarageViewModel) {
     var tab by remember { mutableIntStateOf(0) }
     var dialog by remember { mutableStateOf<String?>(null) }
     var editingSchedule by remember { mutableStateOf<MaintenanceSchedule?>(null) }
+    var editingSet by remember { mutableStateOf<TireSet?>(null) }
+    var setTarget by remember { mutableStateOf<TireSet?>(null) }
+    var eventPreset by remember { mutableStateOf<Pair<String?, String?>>(null to null) }
     var prefill by remember { mutableStateOf("" to "") }
     val snackbar = remember { SnackbarHostState() }
 
@@ -116,7 +122,7 @@ private fun GarageApp(vm: GarageViewModel) {
         }
 
         else -> {
-            val titles = listOf("My Garage", "Expenses", "Reminders", "Settings")
+            val titles = listOf("My Garage", "Expenses", "Tires", "Reminders", "Settings")
             Scaffold(
                 containerColor = Cream,
                 snackbarHost = { SnackbarHost(snackbar) },
@@ -130,13 +136,18 @@ private fun GarageApp(vm: GarageViewModel) {
                     NavigationBar(containerColor = Color.White) {
                         NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Default.DirectionsCar, null) }, label = { Text("Garage") })
                         NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Default.DonutLarge, null) }, label = { Text("Expenses") })
-                        NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Default.Notifications, null) }, label = { Text("Reminders") })
-                        NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
+                        NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Default.TireRepair, null) }, label = { Text("Tires") })
+                        NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Default.Notifications, null) }, label = { Text("Reminders") })
+                        NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") })
                     }
                 },
                 floatingActionButton = {
                     when (tab) {
                         2 -> ExtendedFloatingActionButton(
+                            onClick = { eventPreset = null to null; dialog = "tireEvent" },
+                            icon = { Icon(Icons.Default.Add, null) }, text = { Text("Log tire event") },
+                        )
+                        3 -> ExtendedFloatingActionButton(
                             onClick = { openReminderDialog() },
                             icon = { Icon(Icons.Default.AddAlert, null) }, text = { Text("Add reminder") },
                         )
@@ -172,7 +183,17 @@ private fun GarageApp(vm: GarageViewModel) {
                         modifier = m,
                     )
                     1 -> AnalyticsScreen(active, logs, vm::deleteExpense, m)
-                    2 -> RemindersScreen(reminders, list, vm::deleteReminder, m)
+                    2 -> TiresScreen(
+                        vehicle = active, sets = tireSets, events = tireEvents,
+                        onAddSet = { editingSet = null; dialog = "tireSet" },
+                        onEditSet = { editingSet = it; dialog = "tireSet" },
+                        onDeleteSet = { setTarget = it; dialog = "deleteSet" },
+                        onMountSet = { setTarget = it; dialog = "mountSet" },
+                        onLogEvent = { type, wheel -> eventPreset = type to wheel; dialog = "tireEvent" },
+                        onDeleteEvent = vm::deleteTireEvent,
+                        modifier = m,
+                    )
+                    3 -> RemindersScreen(reminders, list, vm::deleteReminder, m)
                     else -> SettingsScreen(
                         vehicle = active, settings = settings, photoFile = photo, photoVersion = photoVersion,
                         onDueSoonChange = vm::setDueSoonKm, onReminderHourChange = vm::setReminderHour,
@@ -212,6 +233,24 @@ private fun GarageApp(vm: GarageViewModel) {
                 if (editing != null) vm.updateSchedule(editing.copy(serviceName = name, intervalKm = interval, lastDoneOdometer = last))
                 else vm.addSchedule(name, interval, last)
             }
+        }
+        "tireSet" -> TireSetDialog(editingSet, isFirst = tireSets.isEmpty(), onDismiss = { dialog = null }) { name, season, brand, size, km, mountNow ->
+            val editing = editingSet
+            if (editing != null) vm.updateTireSet(editing.copy(name = name, season = season, brand = brand, size = size, kmBefore = km))
+            else vm.addTireSet(name, season, brand, size, km, mountNow)
+        }
+        "mountSet" -> active?.let { v -> setTarget?.let { t -> MountDialog(t, v.currentOdometer, { dialog = null }) { odo -> vm.mountTireSet(t, odo) } } }
+        "deleteSet" -> setTarget?.let { t ->
+            AlertDialog(
+                onDismissRequest = { dialog = null },
+                title = { Text("Delete ${t.name}?") },
+                text = { Text("The set is removed from your list. Its history entries stay.") },
+                confirmButton = { TextButton({ vm.deleteTireSet(t); dialog = null }) { Text("Delete") } },
+                dismissButton = { TextButton({ dialog = null }) { Text("Cancel") } },
+            )
+        }
+        "tireEvent" -> active?.let { v ->
+            TireEventDialog(eventPreset.first, eventPreset.second, v.currentOdometer, { dialog = null }, vm::addTireEvent)
         }
         "reminder" -> AddReminderDialog(settings.reminderHour, prefill.first, prefill.second, { dialog = null }, vm::addReminder)
         "deleteVehicle" -> active?.let { v ->

@@ -24,11 +24,11 @@ import java.time.*
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-private val num = KeyboardOptions(keyboardType = KeyboardType.Number)
-private val dec = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+internal val num = KeyboardOptions(keyboardType = KeyboardType.Number)
+internal val dec = KeyboardOptions(keyboardType = KeyboardType.Decimal)
 
 @Composable
-private fun Field(value: String, onChange: (String) -> Unit, label: String, kb: KeyboardOptions = KeyboardOptions.Default) =
+internal fun Field(value: String, onChange: (String) -> Unit, label: String, kb: KeyboardOptions = KeyboardOptions.Default) =
     OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true, keyboardOptions = kb, modifier = Modifier.fillMaxWidth())
 
 @Composable
