@@ -199,9 +199,18 @@ class GarageViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Maintenance ---------------------------------------------------------------------------
 
-    fun addSchedule(name: String, interval: Int, lastDone: Int, parts: String = "", notes: String = "") = viewModelScope.launch {
+    fun addSchedule(name: String, interval: Int, lastDone: Int, parts: String = "", notes: String = "", cost: Double = 0.0) = viewModelScope.launch {
         val v = activeVehicle.value ?: return@launch
-        db.scheduleDao().upsert(MaintenanceSchedule(newId("SCH"), v.vehicleId, name, interval, lastDone, parts, notes))
+        val s = MaintenanceSchedule(newId("SCH"), v.vehicleId, name, interval, lastDone, parts, notes)
+        db.scheduleDao().upsert(s)
+        // a cost entered here is the service just done: record it so it lands in Expenses, linked to this item
+        if (cost > 0) {
+            val r = MaintenanceRecord(newId("MNT"), v.vehicleId, s.scheduleId, s.serviceName, LocalDate.now().toString(), lastDone, cost, "")
+            db.withTransaction {
+                db.recordDao().upsert(r)
+                mirrorCost(r.recordId, v.vehicleId, r.date, lastDone, cost, s.serviceName, s.scheduleId)
+            }
+        }
     }
 
     /**

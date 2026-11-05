@@ -366,7 +366,8 @@ private val serviceSuggestions = listOf(
 /** Add a maintenance item, or edit one when [initial] is given. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismiss: () -> Unit, onSave: (name: String, interval: Int, last: Int, parts: String, notes: String) -> Unit) {
+fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismiss: () -> Unit, onSave: (name: String, interval: Int, last: Int, parts: String, notes: String, cost: Double) -> Unit) {
+    var cost by remember { mutableStateOf("") }
     var parts by remember { mutableStateOf(initial?.parts ?: "") }
     var notes by remember { mutableStateOf(initial?.notes ?: "") }
     var name by remember { mutableStateOf(initial?.serviceName ?: "") }
@@ -388,6 +389,10 @@ fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismis
                 Field(name, { name = it }, "Service (e.g. Engine oil & filter)")
                 Field(interval, { interval = it }, "Repeat every (km)", num)
                 Field(last, { last = it }, "Last done at (km)", num)
+                if (initial == null) {
+                    Field(cost, { cost = it }, "What it cost, if you just did it (optional)", num)
+                    if (cost.isNotBlank()) Text("Saved as a Service expense dated today, linked to this item.", style = MaterialTheme.typography.bodySmall)
+                }
                 OutlinedTextField(
                     parts, { parts = it }, label = { Text("Your parts and specs (optional)") },
                     placeholder = { Text("e.g. Mobil 1 5W-30, 5.4 L · filter WIX 57060") },
@@ -402,8 +407,8 @@ fun ScheduleDialog(currentOdometer: Int, initial: MaintenanceSchedule?, onDismis
         },
         confirmButton = {
             TextButton(
-                enabled = name.isNotBlank() && (interval.toOdometer() ?: 0) > 0 && last.toOdometer() != null,
-                onClick = { onSave(name.trim(), interval.toOdometer()!!, last.toOdometer()!!, parts.trim(), notes.trim()); onDismiss() },
+                enabled = name.isNotBlank() && (interval.toOdometer() ?: 0) > 0 && last.toOdometer() != null && (cost.isBlank() || cost.toMoney() != null),
+                onClick = { onSave(name.trim(), interval.toOdometer()!!, last.toOdometer()!!, parts.trim(), notes.trim(), cost.toMoney() ?: 0.0); onDismiss() },
             ) { Text("Save") }
         },
         dismissButton = { TextButton(onDismiss) { Text("Cancel") } },

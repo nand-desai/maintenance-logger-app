@@ -446,9 +446,9 @@ private fun GarageAppContent(vm: GarageViewModel) {
 
         "schedule" -> active?.let { v ->
             val editing = editingSchedule
-            ScheduleDialog(v.currentOdometer, editing, { dialog = null }) { name, interval, last, parts, notes ->
+            ScheduleDialog(v.currentOdometer, editing, { dialog = null }) { name, interval, last, parts, notes, cost ->
                 if (editing != null) vm.updateSchedule(editing.copy(serviceName = name, intervalKm = interval, lastDoneOdometer = last, parts = parts, notes = notes))
-                else vm.addSchedule(name, interval, last, parts, notes)
+                else vm.addSchedule(name, interval, last, parts, notes, cost)
             }
         }
 

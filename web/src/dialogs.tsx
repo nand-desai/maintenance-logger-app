@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AttachmentsField, useAttachmentDraft } from './attachments'
 import { num, validMoney, validOdometer, validYear } from './numbers'
 import { db, newId, today } from './db'
+import { saveServiceRecord } from './ops'
 import { saveSettings } from './store'
 import { Field, Sheet } from './ui'
 import { entryLitresPer100 } from './logic/expenses'
@@ -85,7 +86,8 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
   const [last, setLast] = useState((initial?.lastDoneOdometer ?? vehicle.currentOdometer).toString())
   const [parts, setParts] = useState(initial?.parts ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
-  const valid = name.trim() && num(interval) > 0 && validOdometer(last)
+  const [cost, setCost] = useState('')
+  const valid = name.trim() && num(interval) > 0 && validOdometer(last) && validMoney(cost, true)
   return (
     <Sheet title={initial ? 'Edit maintenance item' : 'Add maintenance item'} onClose={onClose}>
       {!initial && (
@@ -99,6 +101,12 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
       <Field label="Service (e.g. Engine oil & filter)" value={name} onChange={setName} />
       <Field label="Repeat every (km)" value={interval} onChange={setInterval} inputMode="numeric" />
       <Field label="Last done at (km)" value={last} onChange={setLast} inputMode="numeric" />
+      {!initial && (
+        <>
+          <Field label="What it cost, if you just did it (optional)" value={cost} onChange={setCost} inputMode="decimal" />
+          {cost.trim() !== '' && <div className="small soft">Saved as a Service expense dated today, linked to this item.</div>}
+        </>
+      )}
       <label className="f">Your parts and specs (optional)
         <textarea rows={2} value={parts} placeholder="e.g. Mobil 1 5W-30, 5.4 L · filter WIX 57060" onChange={(e) => setParts(e.target.value)} />
       </label>
@@ -108,11 +116,14 @@ export function ScheduleDialog({ vehicle, initial, onClose }: { vehicle: Vehicle
       <div className="actions">
         <button className="btn text" onClick={onClose}>Cancel</button>
         <button className="btn" disabled={!valid} onClick={async () => {
-          await db.schedules.put({
+          const sched = {
             scheduleId: initial?.scheduleId ?? newId('SCH'), vehicleId: vehicle.vehicleId,
             serviceName: name.trim(), intervalKm: num(interval), lastDoneOdometer: num(last),
             parts: parts.trim(), notes: notes.trim(),
-          })
+          }
+          await db.schedules.put(sched)
+          // a cost entered here is the service just done: record it so it lands in Expenses, linked to this item
+          if (!initial && num(cost) > 0) await saveServiceRecord(vehicle, sched, { date: today(), odometer: num(last), cost: num(cost), note: '' })
           onClose()
         }}>Save</button>
       </div>
